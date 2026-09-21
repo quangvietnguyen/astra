@@ -1,3 +1,4 @@
+import './src/utils/patchGL';
 import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, SafeAreaView, ImageBackground } from 'react-native';

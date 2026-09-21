@@ -1,7 +1,8 @@
 {
   "name": "three-expo",
   "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
+  "packageManager": "pnpm@10.14.0",
+  "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,18 +10,23 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@react-three/drei": "^9.56.25",
-    "@react-three/fiber": "^8.11.2",
-    "expo": "^47.0.13",
-    "expo-gl": "^12.0.1",
-    "expo-status-bar": "^1.4.2",
-    "expo-three": "^7.0.0",
-    "react": "18.1.0",
-    "react-native": "0.70.5",
-    "three": "^0.149.0"
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
+    "expo": "^57.0.24",
+    "expo-asset": "~57.0.18",
+    "expo-file-system": "~57.0.7",
+    "expo-gl": "^57.0.2",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "^57.0.1",
+    "expo-three": "^8.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-web": "^0.21.2",
+    "three": "^0.166.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.9"
+    "@babel/core": "^7.29.7"
   },
   "private": true
 }
