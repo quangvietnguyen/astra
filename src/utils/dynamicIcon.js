@@ -9,6 +9,8 @@ export const PHASE_ICON_MAP = {
   'Waning Gibbous': 'waning_gibbous',
   'Last Quarter': 'last_quarter',
   'Waning Crescent': 'waning_crescent',
+  'Eclipse': 'eclipse',
+  'eclipse': 'eclipse',
 };
 
 /**
@@ -51,13 +53,13 @@ export function isDynamicAppIconAvailable() {
  * @param {string} phaseName - The astronomical phase name (e.g. "Waxing Gibbous")
  * @returns {Promise<boolean>} - True if icon was changed, false otherwise
  */
-export async function syncAppIconWithPhase(phaseName) {
+export async function syncAppIconWithPhase(phaseName, isEclipse = false) {
   // Pre-check BEFORE requiring expo-dynamic-app-icon to prevent "Cannot find native module 'ExpoDynamicAppIcon'"
   if (!isDynamicAppIconAvailable()) {
     return false;
   }
 
-  const iconKey = PHASE_ICON_MAP[phaseName];
+  const iconKey = isEclipse ? 'eclipse' : (PHASE_ICON_MAP[phaseName] || phaseName);
   if (!iconKey) {
     return false;
   }

@@ -11,13 +11,19 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.nqv.astra",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIRequiresFullScreen": true,
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
         ],
         "UIApplicationSceneManifest": {
           "UIApplicationSupportsMultipleScenes": false,
@@ -114,6 +120,10 @@
           },
           "waning_crescent": {
             "image": "./assets/icons/waning_crescent.png",
+            "prerendered": true
+          },
+          "eclipse": {
+            "image": "./assets/icons/eclipse.png",
             "prerendered": true
           }
         }

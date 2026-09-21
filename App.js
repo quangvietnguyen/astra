@@ -21,6 +21,7 @@ import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 
 export default function App() {
   const { width: windowWidth } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
   const cardWidth = Math.min(310, Math.max(270, windowWidth - 56));
 
   const [location, setLocation] = React.useState(null);
@@ -30,6 +31,7 @@ export default function App() {
   const [moonScale, setMoonScale] = React.useState(1.0);
   const [showTelemetryHUD, setShowTelemetryHUD] = React.useState(true);
   const [showOrbiter, setShowOrbiter] = React.useState(true);
+  const [celestialEvent, setCelestialEvent] = React.useState('standard'); // 'standard' | 'eclipse' | 'mid_autumn'
 
   // Silky smooth native driver animated value (1 = HUD visible, 0 = HUD hidden)
   const hudAnim = React.useRef(new Animated.Value(1)).current;
@@ -52,7 +54,7 @@ export default function App() {
   // Interpolations for fluid sliding
   const hudTranslateY = hudAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [360, 0],
+    outputRange: [isTablet ? 480 : 360, 0],
   });
 
   const hudOpacity = hudAnim.interpolate({
@@ -151,13 +153,26 @@ export default function App() {
     return getMoonAstronomy(currentDate, lat, lon);
   }, [currentDate, lat, lon]);
 
-  // Sync dynamic app icon with current real-world lunar phase
+  // Check if viewing date is in Mid-Autumn season (8th lunar month full moon in late Sep / early Oct)
+  const isAutoMidAutumn = React.useMemo(() => {
+    const month = currentDate.getMonth(); // 8 = Sep, 9 = Oct
+    return (month === 8 || month === 9) && (astronomy.phaseName === 'Full Moon' || astronomy.illuminationPercent >= 92);
+  }, [currentDate, astronomy.phaseName, astronomy.illuminationPercent]);
+
+  const isMoonEclipse = celestialEvent === 'eclipse';
+  const isMidAutumn = celestialEvent === 'mid_autumn' || (celestialEvent === 'standard' && isAutoMidAutumn);
+
+  // Sync dynamic app icon with current lunar phase or active celestial event
   React.useEffect(() => {
     const todayAstro = getMoonAstronomy(new Date(), lat, lon);
-    if (todayAstro?.phaseName) {
-      syncAppIconWithPhase(todayAstro.phaseName);
+    if (isMoonEclipse) {
+      syncAppIconWithPhase('Eclipse', true);
+    } else if (isMidAutumn) {
+      syncAppIconWithPhase('Full Moon', false);
+    } else if (todayAstro?.phaseName) {
+      syncAppIconWithPhase(todayAstro.phaseName, false);
     }
-  }, [lat, lon]);
+  }, [lat, lon, isMoonEclipse, isMidAutumn]);
 
   const formatCoord = (val, isLat) => {
     if (val == null) return '--';
@@ -223,19 +238,52 @@ export default function App() {
           return (
             <>
               <View style={styles.cardHeader}>
-                <Text style={styles.phaseEmoji}>{astronomy.phaseEmoji}</Text>
+                <Text style={styles.phaseEmoji}>
+                  {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
+                </Text>
                 <View style={styles.phaseTitleContainer}>
                   <View style={styles.phaseTitleRow}>
-                    <Text style={styles.phaseName}>{astronomy.phaseName}</Text>
-                    <View style={styles.fullPercentBadge}>
-                      <Text style={styles.fullPercentBadgeText}>
-                        {astronomy.illuminationPercent}% FULL
+                    <Text
+                      style={[
+                        styles.phaseName,
+                        isMoonEclipse && styles.phaseNameEclipse,
+                        isMidAutumn && styles.phaseNameMidAutumn,
+                      ]}
+                    >
+                      {isMoonEclipse
+                        ? 'Total Lunar Eclipse'
+                        : isMidAutumn
+                        ? 'Mid-Autumn Moon'
+                        : astronomy.phaseName}
+                    </Text>
+                    <View
+                      style={[
+                        styles.fullPercentBadge,
+                        isMoonEclipse && styles.fullPercentBadgeEclipse,
+                        isMidAutumn && styles.fullPercentBadgeMidAutumn,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.fullPercentBadgeText,
+                          isMoonEclipse && styles.fullPercentBadgeTextEclipse,
+                          isMidAutumn && styles.fullPercentBadgeTextMidAutumn,
+                        ]}
+                      >
+                        {isMoonEclipse
+                          ? 'BLOOD MOON'
+                          : isMidAutumn
+                          ? '100% RADIANT'
+                          : `${astronomy.illuminationPercent}% FULL`}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.phaseSub}>
-                    {astronomy.illuminationPercent}% Illuminated •{' '}
-                    {astronomy.isWaxing ? 'Waxing' : 'Waning'}
+                    {isMoonEclipse
+                      ? 'Earth Umbra • Atmospheric Rayleigh Refraction'
+                      : isMidAutumn
+                      ? 'Harvest Festival • Golden Brilliant Luminescence'
+                      : `${astronomy.illuminationPercent}% Illuminated • ${astronomy.isWaxing ? 'Waxing' : 'Waning'}`}
                   </Text>
                 </View>
               </View>
@@ -244,8 +292,18 @@ export default function App() {
               <View style={styles.progressBarSection}>
                 <View style={styles.progressLabelsRow}>
                   <Text style={styles.progressLabel}>0% (NEW)</Text>
-                  <Text style={styles.progressLabelHighlight}>
-                    {astronomy.illuminationPercent}% FULL MOON
+                  <Text
+                    style={[
+                      styles.progressLabelHighlight,
+                      isMoonEclipse && styles.progressLabelHighlightEclipse,
+                      isMidAutumn && styles.progressLabelHighlightMidAutumn,
+                    ]}
+                  >
+                    {isMoonEclipse
+                      ? 'UMBRA TOTALITY'
+                      : isMidAutumn
+                      ? 'HARVEST FULL MOON'
+                      : `${astronomy.illuminationPercent}% FULL MOON`}
                   </Text>
                   <Text style={styles.progressLabel}>100% (FULL)</Text>
                 </View>
@@ -253,9 +311,77 @@ export default function App() {
                   <View
                     style={[
                       styles.progressBarFill,
-                      { width: `${Math.min(100, Math.max(2, astronomy.illuminationPercent))}%` },
+                      isMoonEclipse && styles.progressBarFillEclipse,
+                      isMidAutumn && styles.progressBarFillMidAutumn,
+                      {
+                        width: `${
+                          isMoonEclipse || isMidAutumn
+                            ? 100
+                            : Math.min(100, Math.max(2, astronomy.illuminationPercent))
+                        }%`,
+                      },
                     ]}
                   />
+                </View>
+              </View>
+
+              {/* Celestial Event Selector */}
+              <View style={styles.eventSelectorContainer}>
+                <Text style={styles.eventSelectorTitle}>CELESTIAL EVENT</Text>
+                <View style={styles.eventPillsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.eventPill,
+                      celestialEvent === 'standard' && styles.eventPillActiveStandard,
+                    ]}
+                    onPress={() => setCelestialEvent('standard')}
+                  >
+                    <Text style={styles.eventPillEmoji}>⚪</Text>
+                    <Text
+                      style={[
+                        styles.eventPillText,
+                        celestialEvent === 'standard' && styles.eventPillTextActive,
+                      ]}
+                    >
+                      Standard
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.eventPill,
+                      celestialEvent === 'eclipse' && styles.eventPillActiveEclipse,
+                    ]}
+                    onPress={() => setCelestialEvent('eclipse')}
+                  >
+                    <Text style={styles.eventPillEmoji}>🔴</Text>
+                    <Text
+                      style={[
+                        styles.eventPillText,
+                        celestialEvent === 'eclipse' && styles.eventPillTextActiveEclipse,
+                      ]}
+                    >
+                      Eclipse
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.eventPill,
+                      celestialEvent === 'mid_autumn' && styles.eventPillActiveMidAutumn,
+                    ]}
+                    onPress={() => setCelestialEvent('mid_autumn')}
+                  >
+                    <Text style={styles.eventPillEmoji}>🏮</Text>
+                    <Text
+                      style={[
+                        styles.eventPillText,
+                        celestialEvent === 'mid_autumn' && styles.eventPillTextActiveMidAutumn,
+                      ]}
+                    >
+                      Mid-Autumn
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -426,6 +552,26 @@ export default function App() {
                   <Text style={styles.dateStepText}>+1 Day</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Event shortcuts in Time Travel */}
+              <View style={styles.eventQuickJumpRow}>
+                <TouchableOpacity
+                  style={[styles.jumpBtn, isMoonEclipse && styles.jumpBtnActiveEclipse]}
+                  onPress={() => setCelestialEvent(isMoonEclipse ? 'standard' : 'eclipse')}
+                >
+                  <Text style={styles.jumpBtnText}>
+                    {isMoonEclipse ? '✓ Blood Moon Active' : '🔴 Simulate Eclipse'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.jumpBtn, isMidAutumn && styles.jumpBtnActiveMidAutumn]}
+                  onPress={() => setCelestialEvent(isMidAutumn ? 'standard' : 'mid_autumn')}
+                >
+                  <Text style={styles.jumpBtnText}>
+                    {isMidAutumn ? '✓ Mid-Autumn Active' : '🏮 Mid-Autumn Moon'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </>
           );
         default:
@@ -439,6 +585,10 @@ export default function App() {
       dayOffset,
       currentDate,
       adjustMoonSize,
+      celestialEvent,
+      isMoonEclipse,
+      isMidAutumn,
+      location,
     ]
   );
 
@@ -454,16 +604,20 @@ export default function App() {
         <Moon
           lightPosition={astronomy.lightPosition}
           moonScale={moonScale}
+          isMoonEclipse={isMoonEclipse}
+          isMidAutumn={isMidAutumn}
           showOrbiter={showOrbiter}
           hasHUD={showTelemetryHUD}
           dayOffset={dayOffset}
         />
 
         {/* Top Header & GPS Status Bar with Moon percentage */}
-        <View style={styles.topBar} pointerEvents="box-none">
-          <View style={styles.topLeftContainer} pointerEvents="auto">
-            <Text style={styles.brandTitle}>ASTRA • LUNAR OBSERVER</Text>
-            <View style={styles.statusRow}>
+        <View style={[styles.topBar, isTablet && styles.topBarTablet]} pointerEvents="box-none">
+          <View style={[styles.headerContainer, isTablet && styles.headerContainerTablet]} pointerEvents="auto">
+            <Text style={[styles.brandTitle, isTablet && styles.brandTitleTablet]}>
+              ASTRA • LUNAR OBSERVER
+            </Text>
+            <View style={[styles.statusRow, isTablet && styles.statusRowTablet]}>
               {location != null && (
                 <View style={styles.gpsRow}>
                   <Text style={styles.gpsDot}>●</Text>
@@ -475,18 +629,39 @@ export default function App() {
                   </Text>
                 </View>
               )}
-              <View style={styles.topPhaseBadge}>
-                <Text style={styles.topPhaseEmoji}>{astronomy.phaseEmoji}</Text>
-                <Text style={styles.topPhasePercent}>{astronomy.illuminationPercent}% Full</Text>
+              <View
+                style={[
+                  styles.topPhaseBadge,
+                  isMoonEclipse && styles.topPhaseBadgeEclipse,
+                  isMidAutumn && styles.topPhaseBadgeMidAutumn,
+                ]}
+              >
+                <Text style={styles.topPhaseEmoji}>
+                  {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
+                </Text>
+                <Text
+                  style={[
+                    styles.topPhasePercent,
+                    isMoonEclipse && styles.topPhasePercentEclipse,
+                    isMidAutumn && styles.topPhasePercentMidAutumn,
+                  ]}
+                >
+                  {isMoonEclipse
+                    ? 'Total Eclipse'
+                    : isMidAutumn
+                    ? 'Mid-Autumn'
+                    : `${astronomy.illuminationPercent}% Full`}
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Horizontal Scrolling Telemetry HUD Overlay (Animated) */}
+        {/* Telemetry HUD Overlay (Animated: Full horizontal deck on iPad, horizontal scroll on phone) */}
         <Animated.View
           style={[
             styles.hudOverlay,
+            isTablet && styles.hudOverlayTablet,
             {
               opacity: hudOpacity,
               transform: [{ translateY: hudTranslateY }],
@@ -506,6 +681,15 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
+          {isTablet ? (
+            <View style={styles.tabletCardsDeck} pointerEvents="auto">
+              {[0, 1, 2, 3].map((cardIdx) => (
+                <View key={`tablet-card-${cardIdx}`} style={styles.tabletCard}>
+                  {renderCardContent(cardIdx)}
+                </View>
+              ))}
+            </View>
+          ) : (
             <ScrollView
               ref={scrollViewRef}
               horizontal
@@ -533,6 +717,7 @@ export default function App() {
                 </React.Fragment>
               ))}
             </ScrollView>
+          )}
         </Animated.View>
 
         {/* Floating Swipe Up Handle when HUD is hidden (Animated) */}
@@ -553,9 +738,15 @@ export default function App() {
             style={styles.collapsedHandlePill}
           >
             <Text style={styles.swipeArrowUp}>▲</Text>
-            <Text style={styles.collapsedMoonEmoji}>{astronomy.phaseEmoji}</Text>
+            <Text style={styles.collapsedMoonEmoji}>
+              {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
+            </Text>
             <Text style={styles.collapsedHandleText}>
-              {astronomy.phaseName} • {astronomy.illuminationPercent}% Full
+              {isMoonEclipse
+                ? 'Total Lunar Eclipse • Blood Moon'
+                : isMidAutumn
+                ? 'Mid-Autumn Full Moon • 100% Radiant'
+                : `${astronomy.phaseName} • ${astronomy.illuminationPercent}% Full`}
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -584,9 +775,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     zIndex: 10,
   },
-  topLeftContainer: {
+  topBarTablet: {
+    top: Platform.OS === 'ios' ? 24 : 16,
+    left: 28,
+    right: 28,
+  },
+  headerContainer: {
     flexShrink: 1,
     marginRight: 12,
+  },
+  headerContainerTablet: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginRight: 0,
   },
   brandTitle: {
     fontSize: 14,
@@ -597,11 +800,42 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
   },
+  brandTitleTablet: {
+    fontSize: 16,
+    letterSpacing: 2.5,
+  },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
     gap: 8,
+  },
+  statusRowTablet: {
+    marginTop: 0,
+  },
+  hudOverlayTablet: {
+    bottom: 24,
+    paddingHorizontal: 16,
+  },
+  tabletCardsDeck: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    gap: 12,
+    width: '100%',
+    maxWidth: 1360,
+    alignSelf: 'center',
+  },
+  tabletCard: {
+    flex: 1,
+    backgroundColor: 'rgba(9, 14, 26, 0.90)',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(113, 128, 150, 0.25)',
+    justifyContent: 'space-between',
+    minHeight: 210,
   },
   gpsRow: {
     flexDirection: 'row',
@@ -988,5 +1222,140 @@ const styles = StyleSheet.create({
   dateSubText: {
     color: '#a4b0be',
     fontSize: 10,
+  },
+  topPhaseBadgeEclipse: {
+    borderColor: 'rgba(231, 76, 60, 0.65)',
+    backgroundColor: 'rgba(45, 12, 12, 0.88)',
+  },
+  topPhasePercentEclipse: {
+    color: '#ff6b6b',
+  },
+  topPhaseBadgeMidAutumn: {
+    borderColor: 'rgba(241, 196, 15, 0.70)',
+    backgroundColor: 'rgba(45, 36, 10, 0.88)',
+  },
+  topPhasePercentMidAutumn: {
+    color: '#ffd32a',
+  },
+  phaseNameEclipse: {
+    color: '#ff6b6b',
+  },
+  phaseNameMidAutumn: {
+    color: '#ffd32a',
+  },
+  fullPercentBadgeEclipse: {
+    backgroundColor: 'rgba(231, 76, 60, 0.22)',
+    borderColor: '#e74c3c',
+  },
+  fullPercentBadgeTextEclipse: {
+    color: '#ff6b6b',
+  },
+  fullPercentBadgeMidAutumn: {
+    backgroundColor: 'rgba(241, 196, 15, 0.22)',
+    borderColor: '#f1c40f',
+  },
+  fullPercentBadgeTextMidAutumn: {
+    color: '#ffd32a',
+  },
+  progressLabelHighlightEclipse: {
+    color: '#ff6b6b',
+  },
+  progressLabelHighlightMidAutumn: {
+    color: '#ffd32a',
+  },
+  progressBarFillEclipse: {
+    backgroundColor: '#e74c3c',
+  },
+  progressBarFillMidAutumn: {
+    backgroundColor: '#ffd32a',
+  },
+  eventSelectorContainer: {
+    marginTop: 8,
+  },
+  eventSelectorTitle: {
+    color: '#8395a7',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    marginBottom: 5,
+  },
+  eventPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  eventPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(113, 128, 150, 0.25)',
+    gap: 4,
+  },
+  eventPillActiveStandard: {
+    backgroundColor: 'rgba(0, 210, 211, 0.16)',
+    borderColor: '#00d2d3',
+  },
+  eventPillActiveEclipse: {
+    backgroundColor: 'rgba(231, 76, 60, 0.22)',
+    borderColor: '#e74c3c',
+  },
+  eventPillActiveMidAutumn: {
+    backgroundColor: 'rgba(241, 196, 15, 0.22)',
+    borderColor: '#f1c40f',
+  },
+  eventPillEmoji: {
+    fontSize: 10,
+  },
+  eventPillText: {
+    color: '#a4b0be',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  eventPillTextActive: {
+    color: '#00d2d3',
+    fontWeight: '800',
+  },
+  eventPillTextActiveEclipse: {
+    color: '#ff6b6b',
+    fontWeight: '800',
+  },
+  eventPillTextActiveMidAutumn: {
+    color: '#ffd32a',
+    fontWeight: '800',
+  },
+  eventQuickJumpRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  jumpBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(113, 128, 150, 0.25)',
+  },
+  jumpBtnActiveEclipse: {
+    backgroundColor: 'rgba(231, 76, 60, 0.22)',
+    borderColor: '#e74c3c',
+  },
+  jumpBtnActiveMidAutumn: {
+    backgroundColor: 'rgba(241, 196, 15, 0.22)',
+    borderColor: '#f1c40f',
+  },
+  jumpBtnText: {
+    color: '#dfe4ea',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });
