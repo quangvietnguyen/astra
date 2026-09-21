@@ -29,11 +29,25 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 
   # 2. Check for App Store Connect API Key upload via xcrun altool
   if command -v xcrun &>/dev/null; then
-    ASC_KEY_ID="${EXPO_ASC_KEY_ID:-X8Z7SH8JPZ}"
-    ASC_ISSUER_ID="${EXPO_ASC_ISSUER_ID:-2c8ae852-2b19-41a0-92f9-559e6e68739c}"
-    ASC_KEY_PATH="${EXPO_ASC_API_KEY_PATH:-./secrets/AuthKey_X8Z7SH8JPZ.p8}"
+    ASC_KEY_PATH="${EXPO_ASC_API_KEY_PATH:-}"
+    if [ -z "$ASC_KEY_PATH" ] || [ ! -f "$ASC_KEY_PATH" ]; then
+      # Find first .p8 file in ./secrets
+      ASC_KEY_PATH=$(ls ./secrets/AuthKey_*.p8 2>/dev/null | head -n 1 || true)
+    fi
 
-    if [ -f "$ASC_KEY_PATH" ]; then
+    if [ -n "$ASC_KEY_PATH" ] && [ -f "$ASC_KEY_PATH" ]; then
+      # Extract key ID from filename if not specified
+      DETECTED_KEY_ID=$(basename "$ASC_KEY_PATH" | sed -n 's/^AuthKey_\(.*\)\.p8$/\1/p')
+      ASC_KEY_ID="${EXPO_ASC_KEY_ID:-$DETECTED_KEY_ID}"
+      ASC_ISSUER_ID="${EXPO_ASC_ISSUER_ID:-2c8ae852-2b19-41a0-92f9-559e6e68739c}"
+
+      echo "🔑 Found App Store Connect API Key: $ASC_KEY_PATH (Key ID: $ASC_KEY_ID)"
+
+      # xcrun altool looks for AuthKey_<KeyID>.p8 in ~/.appstoreconnect/private_keys or ~/.private_keys
+      mkdir -p ~/.appstoreconnect/private_keys ~/.private_keys
+      cp -f "$ASC_KEY_PATH" ~/.appstoreconnect/private_keys/ 2>/dev/null || true
+      cp -f "$ASC_KEY_PATH" ~/.private_keys/ 2>/dev/null || true
+
       echo "🚀 Uploading directly to App Store Connect via xcrun altool..."
       xcrun altool --upload-app -f "$IPA_PATH" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
       echo "✅ Successfully uploaded to App Store Connect!"
