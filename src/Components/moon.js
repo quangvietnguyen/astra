@@ -6,12 +6,24 @@ import LunarOrbiter from './LunarOrbiter';
 
 const BASE_MOON_RADIUS = 2.05;
 
-function MoonCore({ radius }) {
+// Exact astronomical sidereal rotation period of the Moon:
+// 27.321661 days (27 days, 7 hours, 43 minutes, 11.5 seconds) = 2,360,591.5 seconds.
+// Angular velocity: 2 * PI / 2,360,591.5 = 2.661699e-6 rad/second (~13.176 deg/day)
+export const LUNAR_SIDEREAL_PERIOD_DAYS = 27.321661;
+export const LUNAR_SIDEREAL_PERIOD_SECONDS = LUNAR_SIDEREAL_PERIOD_DAYS * 86400;
+export const LUNAR_ROTATION_SPEED_RAD_PER_SEC = (2 * Math.PI) / LUNAR_SIDEREAL_PERIOD_SECONDS;
+export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / LUNAR_SIDEREAL_PERIOD_DAYS;
+
+function MoonCore({ radius, dayOffset = 0 }) {
   const ref = React.useRef();
   const map = useLoader(TextureLoader, moonImg);
   useFrame(({ clock }) => {
     if (ref.current) {
-      ref.current.rotation.y = -(clock.getElapsedTime() / 20);
+      // Rotate at the exact physical astronomical speed of the Moon
+      ref.current.rotation.y = -(
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
+        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+      );
     }
   });
   return (
@@ -110,11 +122,14 @@ function SeamlessSunlitGlow({ radius, sunPos }) {
   );
 }
 
-function MoonFallback({ radius }) {
+function MoonFallback({ radius, dayOffset = 0 }) {
   const ref = React.useRef();
   useFrame(({ clock }) => {
     if (ref.current) {
-      ref.current.rotation.y = -(clock.getElapsedTime() / 20);
+      ref.current.rotation.y = -(
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
+        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+      );
     }
   });
   return (
@@ -125,11 +140,14 @@ function MoonFallback({ radius }) {
   );
 }
 
-function MoonEclipse({ radius, opacity = 0.4 }) {
+function MoonEclipse({ radius, opacity = 0.4, dayOffset = 0 }) {
   const ref = React.useRef();
   useFrame(({ clock }) => {
     if (ref.current) {
-      ref.current.rotation.y = clock.getElapsedTime() / 200;
+      ref.current.rotation.y = -(
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
+        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+      );
     }
   });
   return (
@@ -149,6 +167,7 @@ function MoonSystem({
   currentOrbitRadius,
   moonScale,
   targetY,
+  dayOffset = 0,
 }) {
   const systemRef = React.useRef();
 
@@ -163,9 +182,9 @@ function MoonSystem({
 
   return (
     <group ref={systemRef} position={[0, targetY, 0]}>
-      <MoonCore radius={radius} />
+      <MoonCore radius={radius} dayOffset={dayOffset} />
       <SeamlessSunlitGlow radius={radius} sunPos={sunPos} />
-      {isMoonEclipse && <MoonEclipse radius={radius} opacity={eclipseDarkness} />}
+      {isMoonEclipse && <MoonEclipse radius={radius} opacity={eclipseDarkness} dayOffset={dayOffset} />}
       {showOrbiter && (
         <LunarOrbiter
           center={[0, 0, 0]}
@@ -180,7 +199,7 @@ function MoonSystem({
   );
 }
 
-function MoonFallbackSystem({ radius, targetY }) {
+function MoonFallbackSystem({ radius, targetY, dayOffset = 0 }) {
   const systemRef = React.useRef();
   useFrame((_, delta) => {
     if (systemRef.current) {
@@ -192,7 +211,7 @@ function MoonFallbackSystem({ radius, targetY }) {
   });
   return (
     <group ref={systemRef} position={[0, targetY, 0]}>
-      <MoonFallback radius={radius} />
+      <MoonFallback radius={radius} dayOffset={dayOffset} />
     </group>
   );
 }
@@ -204,6 +223,7 @@ export default function Moon({
   eclipseDarkness = 0.4,
   showOrbiter = true,
   hasHUD = true,
+  dayOffset = 0,
 }) {
   const targetY = hasHUD ? 0.70 : 0.0;
   const [lx, ly, lz] = lightPosition;
@@ -229,7 +249,7 @@ export default function Moon({
       {/* 3. Subtle cosmic Earthshine for unlit craters */}
       <ambientLight color="#121b28" intensity={0.22} />
 
-      <React.Suspense fallback={<MoonFallbackSystem radius={currentRadius} targetY={targetY} />}>
+      <React.Suspense fallback={<MoonFallbackSystem radius={currentRadius} targetY={targetY} dayOffset={dayOffset} />}>
         <MoonSystem
           radius={currentRadius}
           isMoonEclipse={isMoonEclipse}
@@ -239,6 +259,7 @@ export default function Moon({
           currentOrbitRadius={currentOrbitRadius}
           moonScale={moonScale}
           targetY={targetY}
+          dayOffset={dayOffset}
         />
       </React.Suspense>
     </Canvas>

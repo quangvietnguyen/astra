@@ -21,7 +21,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#050811"
+        "backgroundColor": "#071430"
       },
       "package": "com.nqv.astra",
       "permissions": [
@@ -40,19 +40,19 @@
         {
           "image": "./assets/splash.png",
           "resizeMode": "cover",
-          "backgroundColor": "#050811",
+          "backgroundColor": "#071430",
           "enableFullScreenImage_legacy": true,
           "imageWidth": 288,
           "ios": {
             "image": "./assets/splash.png",
             "resizeMode": "cover",
-            "backgroundColor": "#050811",
+            "backgroundColor": "#071430",
             "enableFullScreenImage_legacy": true
           },
           "android": {
             "image": "./assets/splash.png",
             "resizeMode": "cover",
-            "backgroundColor": "#050811",
+            "backgroundColor": "#071430",
             "imageWidth": 288
           }
         }
