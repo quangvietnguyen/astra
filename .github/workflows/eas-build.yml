@@ -1,0 +1,150 @@
+name: EAS Build & Submit (Apple App Store)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action_mode:
+        description: 'Action to perform'
+        required: true
+        default: 'build_and_submit'
+        type: choice
+        options:
+          - build_and_submit
+          - build_only
+          - submit_latest_build
+      environment:
+        description: 'Target Environment / Profile'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+          - development
+      clear_cache:
+        description: 'Clear remote EAS cache and refresh certificates/profiles'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  eas-cloud-build:
+    name: EAS Cloud Build (${{ github.event.inputs.environment || 'production' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Setup App Store Connect AuthKey
+        shell: bash
+        run: |
+          mkdir -p secrets
+          if [ -n "${{ secrets.EXPO_ASC_API_KEY_P8 }}" ]; then
+            echo "${{ secrets.EXPO_ASC_API_KEY_P8 }}" > secrets/AuthKey_X8Z7SH8JPZ.p8
+            chmod 600 secrets/AuthKey_X8Z7SH8JPZ.p8
+            echo "✅ Injected App Store Connect AuthKey from secrets.EXPO_ASC_API_KEY_P8"
+          elif [ -n "${{ secrets.APP_STORE_CONNECT_KEY_P8 }}" ]; then
+            echo "${{ secrets.APP_STORE_CONNECT_KEY_P8 }}" > secrets/AuthKey_X8Z7SH8JPZ.p8
+            chmod 600 secrets/AuthKey_X8Z7SH8JPZ.p8
+            echo "✅ Injected App Store Connect AuthKey from secrets.APP_STORE_CONNECT_KEY_P8"
+          else
+            echo "ℹ️ No AuthKey secret found in repository secrets. Relying on remote EAS credentials."
+          fi
+
+      - name: Configure Environment Variables
+        run: |
+          ENV_CHOICE="${{ github.event.inputs.environment || 'production' }}"
+          if [ -n "${{ secrets.ENV_PRODUCTION }}" ]; then
+            echo "${{ secrets.ENV_PRODUCTION }}" > .env
+          fi
+
+      - name: Execute EAS Cloud Build
+        id: eas-build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_ASC_KEY_ID: 'X8Z7SH8JPZ'
+          EXPO_ASC_ISSUER_ID: '2c8ae852-2b19-41a0-92f9-559e6e68739c'
+          EXPO_ASC_API_KEY_PATH: './secrets/AuthKey_X8Z7SH8JPZ.p8'
+        run: |
+          MODE="${{ github.event.inputs.action_mode || 'build_and_submit' }}"
+          ENV_CHOICE="${{ github.event.inputs.environment || 'production' }}"
+          CLEAR_CACHE="${{ github.event.inputs.clear_cache == 'true' }}"
+
+          EXTRA_ARGS="--non-interactive"
+          if [ "$CLEAR_CACHE" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --clear-cache"
+          fi
+
+          echo "Running EAS Cloud with Mode: $MODE | Profile: $ENV_CHOICE | Clear Cache: $CLEAR_CACHE"
+
+          if [ "$MODE" = "submit_latest_build" ]; then
+            CMD="npx eas-cli submit --platform ios --profile $ENV_CHOICE --latest --non-interactive"
+          elif [ "$MODE" = "build_only" ]; then
+            CMD="npx eas-cli build --platform ios --profile $ENV_CHOICE $EXTRA_ARGS"
+          else
+            if [ "$ENV_CHOICE" = "production" ]; then
+              CMD="npx eas-cli build --platform ios --profile production --auto-submit $EXTRA_ARGS"
+            else
+              CMD="npx eas-cli build --platform ios --profile $ENV_CHOICE $EXTRA_ARGS"
+            fi
+          fi
+
+          echo "Executing: $CMD"
+          LOG_FILE=$(mktemp)
+          set +e
+          $CMD 2>&1 | tee "$LOG_FILE"
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            if grep -qiE "used its (iOS|Android) builds from the Free plan|spending limit needs to be increased|account payments have failed|Billing & plans|billing:subscribe" "$LOG_FILE"; then
+              echo "::warning title=EAS Plan/Billing Limit Reached::EAS iOS build limit reached for the Free plan or payment/spending limit reached. Skipping build failure to allow the rest of the pipeline to continue."
+              echo ""
+              echo "⚠️ ==================================================================================="
+              echo "⚠️ EAS BUILD QUOTA / BILLING NOTICE DETECTED"
+              echo "⚠️ Notice: This account has used its build quota or hit a billing/spending limit."
+              echo "⚠️ Reference: https://expo.dev/accounts/nqv/settings/billing"
+              echo "⚠️ Downgrading error to a warning so remaining pipeline steps can continue running."
+              echo "⚠️ ==================================================================================="
+              echo ""
+              echo "eas_build_skipped=true" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo "❌ EAS execution failed with exit code $EXIT_CODE"
+              exit $EXIT_CODE
+            fi
+          fi

@@ -115,31 +115,35 @@ if (typeof global !== 'undefined') {
     global.__EXGLContexts = contextsStore;
   }
 
-  // 3. Filter console and LogBox warnings as defense-in-depth
+  const isIgnoredWarning = (msg) => {
+    if (typeof msg !== 'string') return false;
+    return (
+      msg.includes("gl.pixelStorei() doesn't support this parameter") ||
+      msg.includes("Multiple instances of Three.js being imported") ||
+      msg.includes("Falling back to file-based resolution") ||
+      msg.includes("contains an invalid package.json configuration") ||
+      msg.includes("SafeAreaView has been deprecated")
+    );
+  };
+
   const origConsoleLog = console.log;
   console.log = (...args) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes("gl.pixelStorei() doesn't support this parameter")
-    ) {
-      return;
-    }
+    if (isIgnoredWarning(args[0])) return;
     return origConsoleLog.apply(console, args);
   };
 
   const origConsoleWarn = console.warn;
   console.warn = (...args) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes("gl.pixelStorei() doesn't support this parameter")
-    ) {
-      return;
-    }
+    if (isIgnoredWarning(args[0])) return;
     return origConsoleWarn.apply(console, args);
   };
 
   LogBox.ignoreLogs([
     "EXGL: gl.pixelStorei() doesn't support this parameter yet!",
     "gl.pixelStorei() doesn't support this parameter yet",
+    "WARNING: Multiple instances of Three.js being imported",
+    "SafeAreaView has been deprecated",
+    "Falling back to file-based resolution",
+    "contains an invalid package.json configuration",
   ]);
 }

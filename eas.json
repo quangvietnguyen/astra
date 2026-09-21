@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 21.0.2",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "buildConfiguration": "Release",
+        "credentialsSource": "remote"
+      },
+      "env": {
+        "EXPO_ASC_API_KEY_PATH": "./secrets/AuthKey_X8Z7SH8JPZ.p8",
+        "EXPO_ASC_KEY_ID": "X8Z7SH8JPZ",
+        "EXPO_ASC_ISSUER_ID": "2c8ae852-2b19-41a0-92f9-559e6e68739c",
+        "EXPO_APPLE_TEAM_ID": "DL3DFHTCY5",
+        "EXPO_APPLE_TEAM_TYPE": "individual"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "viet.ngquang92@gmail.com",
+        "appleTeamId": "DL3DFHTCY5"
+      },
+      "android": {
+        "track": "internal"
+      }
+    }
+  }
+}

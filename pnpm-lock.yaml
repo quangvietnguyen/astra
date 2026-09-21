@@ -20,6 +20,9 @@ importers:
       expo-asset:
         specifier: ~57.0.18
         version: 57.0.18(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3))(react@19.2.3)
+      expo-dynamic-app-icon:
+        specifier: ^1.2.0
+        version: 1.2.0(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3))(react@19.2.3)
       expo-file-system:
         specifier: ~57.0.7
         version: 57.0.7(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3))
@@ -1652,6 +1655,13 @@ packages:
     resolution: {integrity: sha512-3eK1kZRwCdMizQLlM/PPlPwjaPnB5qKvdRDMBMnB1ZxmvWJBf9TB4uEO4DMMfIPaFUxYFs29dsR5fPr1gh3FTQ==}
     peerDependencies:
       expo: '*'
+      react-native: '*'
+
+  expo-dynamic-app-icon@1.2.0:
+    resolution: {integrity: sha512-l8qNUVl9lhADtdgyL6hf6xWFOaDayFCXdXnqDGzh1H3P58n380WkzibjVxbL/w0Nbu4FUUGVqMLAY1BETTzo9g==}
+    peerDependencies:
+      expo: '>=49'
+      react: '*'
       react-native: '*'
 
   expo-file-system@57.0.7:
@@ -5608,6 +5618,12 @@ snapshots:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3)
     transitivePeerDependencies:
       - supports-color
+
+  expo-dynamic-app-icon@1.2.0(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3))(react@19.2.3):
+    dependencies:
+      expo: 57.0.24(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(encoding@0.1.13)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3))(react@19.2.3)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3)
 
   expo-file-system@57.0.7(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@18.0.28)(react@19.2.3)):
     dependencies:

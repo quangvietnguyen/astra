@@ -1,37 +1,100 @@
 {
   "expo": {
-    "name": "three-expo",
-    "slug": "three-expo",
+    "name": "Astra",
+    "slug": "astra",
+    "scheme": "astra",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-
+    "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nqv.astra",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Astra uses your location to compute accurate topocentric Moon phase, orientation, and astronomical solar lighting for your sky."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
-      }
+        "backgroundColor": "#050811"
+      },
+      "package": "com.nqv.astra",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-status-bar",
+      "expo-asset",
       [
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "resizeMode": "cover",
+          "backgroundColor": "#050811",
+          "enableFullScreenImage_legacy": true,
+          "imageWidth": 288,
+          "ios": {
+            "image": "./assets/splash.png",
+            "resizeMode": "cover",
+            "backgroundColor": "#050811",
+            "enableFullScreenImage_legacy": true
+          },
+          "android": {
+            "image": "./assets/splash.png",
+            "resizeMode": "cover",
+            "backgroundColor": "#050811",
+            "imageWidth": 288
+          }
+        }
+      ],
+      [
+        "expo-dynamic-app-icon",
+        {
+          "new_moon": {
+            "image": "./assets/icons/new_moon.png",
+            "prerendered": true
+          },
+          "waxing_crescent": {
+            "image": "./assets/icons/waxing_crescent.png",
+            "prerendered": true
+          },
+          "first_quarter": {
+            "image": "./assets/icons/first_quarter.png",
+            "prerendered": true
+          },
+          "waxing_gibbous": {
+            "image": "./assets/icons/waxing_gibbous.png",
+            "prerendered": true
+          },
+          "full_moon": {
+            "image": "./assets/icons/full_moon.png",
+            "prerendered": true
+          },
+          "waning_gibbous": {
+            "image": "./assets/icons/waning_gibbous.png",
+            "prerendered": true
+          },
+          "last_quarter": {
+            "image": "./assets/icons/last_quarter.png",
+            "prerendered": true
+          },
+          "waning_crescent": {
+            "image": "./assets/icons/waning_crescent.png",
+            "prerendered": true
+          }
         }
       ]
-    ]
+    ],
+    "owner": "nqv"
   }
 }
