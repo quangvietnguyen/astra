@@ -6,23 +6,20 @@ import LunarOrbiter from './LunarOrbiter';
 
 const BASE_MOON_RADIUS = 2.05;
 
-// Exact astronomical sidereal rotation period of the Moon:
-// 27.321661 days (27 days, 7 hours, 43 minutes, 11.5 seconds) = 2,360,591.5 seconds.
-// Angular velocity: 2 * PI / 2,360,591.5 = 2.661699e-6 rad/second (~13.176 deg/day)
-export const LUNAR_SIDEREAL_PERIOD_DAYS = 27.321661;
-export const LUNAR_SIDEREAL_PERIOD_SECONDS = LUNAR_SIDEREAL_PERIOD_DAYS * 86400;
-export const LUNAR_ROTATION_SPEED_RAD_PER_SEC = (2 * Math.PI) / LUNAR_SIDEREAL_PERIOD_SECONDS;
-export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / LUNAR_SIDEREAL_PERIOD_DAYS;
+// Slow, majestic continuous rotation (1 full revolution every ~377 seconds / ~6.3 minutes)
+// Gives a graceful, visible celestial rotation while remaining calm and serene
+export const SLOW_ROTATION_DIVISOR = 60;
+export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / 27.321661;
 
 function MoonCore({ radius, dayOffset = 0 }) {
   const ref = React.useRef();
   const map = useLoader(TextureLoader, moonImg);
   useFrame(({ clock }) => {
     if (ref.current) {
-      // Rotate at the exact physical astronomical speed of the Moon
+      // Slow continuous rotation + astronomical day offset step
       ref.current.rotation.y = -(
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
-        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
       );
     }
   });
@@ -127,8 +124,8 @@ function MoonFallback({ radius, dayOffset = 0 }) {
   useFrame(({ clock }) => {
     if (ref.current) {
       ref.current.rotation.y = -(
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
-        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
       );
     }
   });
@@ -145,8 +142,8 @@ function MoonEclipse({ radius, opacity = 0.4, dayOffset = 0 }) {
   useFrame(({ clock }) => {
     if (ref.current) {
       ref.current.rotation.y = -(
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD +
-        clock.getElapsedTime() * LUNAR_ROTATION_SPEED_RAD_PER_SEC
+        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
+        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
       );
     }
   });

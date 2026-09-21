@@ -15,6 +15,15 @@ on:
           - build_and_submit
           - build_only
           - submit_latest_build
+      platform:
+        description: 'Target Platform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ios
+          - android
       environment:
         description: 'Target Environment / Profile'
         required: true
@@ -101,6 +110,7 @@ jobs:
           EXPO_ASC_API_KEY_PATH: './secrets/AuthKey_X8Z7SH8JPZ.p8'
         run: |
           MODE="${{ github.event.inputs.action_mode || 'build_and_submit' }}"
+          PLATFORM="${{ github.event.inputs.platform || 'all' }}"
           ENV_CHOICE="${{ github.event.inputs.environment || 'production' }}"
           CLEAR_CACHE="${{ github.event.inputs.clear_cache == 'true' }}"
 
@@ -109,17 +119,17 @@ jobs:
             EXTRA_ARGS="$EXTRA_ARGS --clear-cache"
           fi
 
-          echo "Running EAS Cloud with Mode: $MODE | Profile: $ENV_CHOICE | Clear Cache: $CLEAR_CACHE"
+          echo "Running EAS Cloud with Platform: $PLATFORM | Mode: $MODE | Profile: $ENV_CHOICE | Clear Cache: $CLEAR_CACHE"
 
           if [ "$MODE" = "submit_latest_build" ]; then
-            CMD="npx eas-cli submit --platform ios --profile $ENV_CHOICE --latest --non-interactive"
+            CMD="npx eas-cli submit --platform $PLATFORM --profile $ENV_CHOICE --latest --non-interactive"
           elif [ "$MODE" = "build_only" ]; then
-            CMD="npx eas-cli build --platform ios --profile $ENV_CHOICE $EXTRA_ARGS"
+            CMD="npx eas-cli build --platform $PLATFORM --profile $ENV_CHOICE $EXTRA_ARGS"
           else
             if [ "$ENV_CHOICE" = "production" ]; then
-              CMD="npx eas-cli build --platform ios --profile production --auto-submit $EXTRA_ARGS"
+              CMD="npx eas-cli build --platform $PLATFORM --profile production --auto-submit $EXTRA_ARGS"
             else
-              CMD="npx eas-cli build --platform ios --profile $ENV_CHOICE $EXTRA_ARGS"
+              CMD="npx eas-cli build --platform $PLATFORM --profile $ENV_CHOICE $EXTRA_ARGS"
             fi
           fi
 
@@ -132,13 +142,19 @@ jobs:
 
           if [ $EXIT_CODE -ne 0 ]; then
             if grep -qiE "used its (iOS|Android) builds from the Free plan|spending limit needs to be increased|account payments have failed|Billing & plans|billing:subscribe" "$LOG_FILE"; then
-              echo "::warning title=EAS Plan/Billing Limit Reached::EAS iOS build limit reached for the Free plan or payment/spending limit reached. Skipping build failure to allow the rest of the pipeline to continue."
+              echo "::warning title=EAS Plan/Billing Limit Reached::EAS build limit reached for the Free plan or payment/spending limit reached."
               echo ""
               echo "⚠️ ==================================================================================="
-              echo "⚠️ EAS BUILD QUOTA / BILLING NOTICE DETECTED"
-              echo "⚠️ Notice: This account has used its build quota or hit a billing/spending limit."
-              echo "⚠️ Reference: https://expo.dev/accounts/nqv/settings/billing"
-              echo "⚠️ Downgrading error to a warning so remaining pipeline steps can continue running."
+              echo "⚠️ EAS CLOUD BUILD QUOTA / BILLING NOTICE DETECTED"
+              echo "⚠️ Notice: This account has reached its EAS Cloud build quota."
+              echo "⚠️ ==================================================================================="
+              echo "💡 LOCAL MACOS BUILD FALLBACK:"
+              echo "   To build locally on your Mac and upload directly via Apple Transporter app:"
+              echo "   1) Run: pnpm run eas:build:local:ios"
+              echo "      (Generates a signed production .ipa in ./builds/astra.ipa)"
+              echo "   2) Run: pnpm run transporter:upload:ios"
+              echo "      (Automatically opens the .ipa in Transporter.app; simply click 'Deliver')"
+              echo "   Or run both in one step: pnpm run eas:build:local:ios:submit"
               echo "⚠️ ==================================================================================="
               echo ""
               echo "eas_build_skipped=true" >> $GITHUB_OUTPUT

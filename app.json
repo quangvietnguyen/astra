@@ -58,6 +58,12 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Astra uses your location to compute accurate topocentric Moon phase, orientation, and astronomical solar lighting for your sky."
+        }
+      ],
+      [
         "expo-dynamic-app-icon",
         {
           "new_moon": {

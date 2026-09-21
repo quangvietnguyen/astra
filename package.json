@@ -16,6 +16,11 @@
     "eas:build:android:preview": "eas build --platform android --profile preview",
     "eas:build:android:prod": "eas build --platform android --profile production",
     "eas:build:all:prod": "eas build --platform all --profile production",
+    "eas:build:local:ios": "mkdir -p builds && eas build --platform ios --profile production --local --output=./builds/astra.ipa",
+    "eas:build:local:ios:submit": "pnpm run eas:build:local:ios && pnpm run transporter:upload:ios",
+    "transporter:upload:ios": "bash scripts/upload-to-transporter.sh ./builds/astra.ipa",
+    "transporter:open": "bash scripts/upload-to-transporter.sh ./builds/astra.ipa",
+    "eas:build:local:android": "mkdir -p builds && eas build --platform android --profile production --local --output=./builds/astra.aab",
     "eas:submit:ios": "eas submit --platform ios",
     "eas:submit:ios:latest": "eas submit --platform ios --latest",
     "eas:submit:android": "eas submit --platform android",
@@ -29,6 +34,7 @@
     "expo-dynamic-app-icon": "^1.2.0",
     "expo-file-system": "~57.0.7",
     "expo-gl": "^57.0.2",
+    "expo-location": "~57.0.19",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "^57.0.1",
     "expo-three": "^8.0.0",
@@ -39,7 +45,8 @@
     "three": "^0.166.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.7"
+    "@babel/core": "^7.29.7",
+    "eas-cli": "^23.2.0"
   },
   "private": true
 }

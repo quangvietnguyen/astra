@@ -165,6 +165,283 @@ export default function App() {
     return `${Math.abs(val).toFixed(2)}° ${dir}`;
   };
 
+  // Infinite horizontal scroll configuration (5 sets: Set 2 is the center set)
+  const cardStep = cardWidth + 12;
+  const cycleWidth = 4 * cardStep;
+  const initialScrollX = 2 * cycleWidth;
+  const scrollViewRef = React.useRef(null);
+  const isAdjustingScroll = React.useRef(false);
+  const hasInitializedScroll = React.useRef(false);
+
+  const handleScrollLayout = React.useCallback(() => {
+    if (!hasInitializedScroll.current) {
+      hasInitializedScroll.current = true;
+      scrollViewRef.current?.scrollTo({
+        x: initialScrollX,
+        animated: false,
+      });
+    }
+  }, [initialScrollX]);
+
+  const handleMomentumScrollEnd = React.useCallback(
+    (e) => {
+      if (isAdjustingScroll.current) {
+        isAdjustingScroll.current = false;
+        return;
+      }
+      const offsetX = e.nativeEvent.contentOffset.x;
+      const centerOffset = 2 * cycleWidth;
+      const diff = offsetX - centerOffset;
+      const cyclesAway = Math.round(diff / cycleWidth);
+
+      if (cyclesAway !== 0) {
+        const normalizedX = offsetX - cyclesAway * cycleWidth;
+        isAdjustingScroll.current = true;
+        scrollViewRef.current?.scrollTo({
+          x: normalizedX,
+          animated: false,
+        });
+      }
+    },
+    [cycleWidth]
+  );
+
+  const handleScrollEndDrag = React.useCallback(
+    (e) => {
+      const velocity = Math.abs(e.nativeEvent.velocity?.x || 0);
+      if (velocity < 0.1) {
+        handleMomentumScrollEnd(e);
+      }
+    },
+    [handleMomentumScrollEnd]
+  );
+
+  const renderCardContent = React.useCallback(
+    (index) => {
+      switch (index) {
+        case 0:
+          return (
+            <>
+              <View style={styles.cardHeader}>
+                <Text style={styles.phaseEmoji}>{astronomy.phaseEmoji}</Text>
+                <View style={styles.phaseTitleContainer}>
+                  <View style={styles.phaseTitleRow}>
+                    <Text style={styles.phaseName}>{astronomy.phaseName}</Text>
+                    <View style={styles.fullPercentBadge}>
+                      <Text style={styles.fullPercentBadgeText}>
+                        {astronomy.illuminationPercent}% FULL
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.phaseSub}>
+                    {astronomy.illuminationPercent}% Illuminated •{' '}
+                    {astronomy.isWaxing ? 'Waxing' : 'Waning'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress bar of lunar cycle to Full Moon */}
+              <View style={styles.progressBarSection}>
+                <View style={styles.progressLabelsRow}>
+                  <Text style={styles.progressLabel}>0% (NEW)</Text>
+                  <Text style={styles.progressLabelHighlight}>
+                    {astronomy.illuminationPercent}% FULL MOON
+                  </Text>
+                  <Text style={styles.progressLabel}>100% (FULL)</Text>
+                </View>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${Math.min(100, Math.max(2, astronomy.illuminationPercent))}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              {/* Astronomical Metrics Grid */}
+              <View style={styles.metricsGrid}>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>MOON AGE</Text>
+                  <Text style={styles.metricValue}>{astronomy.moonAgeDays} d</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>DISTANCE</Text>
+                  <Text style={styles.metricValue}>
+                    {astronomy.moonDistanceKm.toLocaleString()} km
+                  </Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>ELONGATION</Text>
+                  <Text style={styles.metricValue}>{astronomy.elongationDeg}°</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>HEMISPHERE</Text>
+                  <Text style={styles.metricValue}>
+                    {location != null
+                      ? astronomy.isSouthernHemisphere
+                        ? 'Southern'
+                        : 'Northern'
+                      : 'Equatorial (0°)'}
+                  </Text>
+                </View>
+              </View>
+            </>
+          );
+        case 1:
+          return (
+            <>
+              <Text style={styles.controlsTitle}>MOON SIZE ADJUSTMENT</Text>
+              <View style={styles.sizeControlRow}>
+                <TouchableOpacity
+                  style={styles.sizeBtn}
+                  onPress={() => adjustMoonSize(-0.1)}
+                >
+                  <Text style={styles.sizeBtnText}>－ Shrink</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.sizeCenterBtn}
+                  onPress={() => setMoonScale(1.0)}
+                >
+                  <Text style={styles.sizeCenterVal}>{Math.round(moonScale * 100)}%</Text>
+                  <Text style={styles.sizeCenterSub}>Tap to Reset</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.sizeBtn}
+                  onPress={() => adjustMoonSize(0.1)}
+                >
+                  <Text style={styles.sizeBtnText}>＋ Enlarge</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Presets */}
+              <View style={styles.presetsRow}>
+                {[
+                  { label: 'Small', scale: 0.75 },
+                  { label: 'Default', scale: 1.0 },
+                  { label: 'Large', scale: 1.25 },
+                  { label: 'Max', scale: 1.5 },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.label}
+                    style={[
+                      styles.presetPill,
+                      Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillActive,
+                    ]}
+                    onPress={() => setMoonScale(item.scale)}
+                  >
+                    <Text
+                      style={[
+                        styles.presetPillText,
+                        Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          );
+        case 2:
+          return (
+            <>
+              <View style={styles.cardHeader}>
+                <Text style={styles.orbiterEmoji}>🛰️</Text>
+                <View style={styles.phaseTitleContainer}>
+                  <Text style={styles.orbiterTitle}>NASA LRO</Text>
+                  <Text style={styles.orbiterSub}>Behind-to-Front Polar Orbit</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.activeBadge, !showOrbiter && styles.activeBadgeOff]}
+                  onPress={() => setShowOrbiter((v) => !v)}
+                >
+                  <Text style={styles.activeBadgeText}>
+                    {showOrbiter ? 'ORBITER: ON' : 'ORBITER: OFF'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.orbiterDesc}>
+                Circulating from behind the Moon across the front illuminated face.
+                Dynamically scales in sync with the Moon ({Math.round(moonScale * 100)}%).
+              </Text>
+
+              <View style={styles.orbiterMetricsRow}>
+                <View style={styles.orbiterMetric}>
+                  <Text style={styles.orbiterMetricLabel}>ALTITUDE</Text>
+                  <Text style={styles.orbiterMetricVal}>~50 km</Text>
+                </View>
+                <View style={styles.orbiterMetric}>
+                  <Text style={styles.orbiterMetricLabel}>ORBIT</Text>
+                  <Text style={styles.orbiterMetricVal}>Behind→Front</Text>
+                </View>
+                <View style={styles.orbiterMetric}>
+                  <Text style={styles.orbiterMetricLabel}>SPEED</Text>
+                  <Text style={styles.orbiterMetricVal}>1.6 km/s</Text>
+                </View>
+                <View style={styles.orbiterMetric}>
+                  <Text style={styles.orbiterMetricLabel}>LRO SCALE</Text>
+                  <Text style={styles.orbiterMetricVal}>{Math.round(moonScale * 100)}%</Text>
+                </View>
+              </View>
+            </>
+          );
+        case 3:
+          return (
+            <>
+              <Text style={styles.controlsTitle}>PHASE TIME TRAVEL</Text>
+              <Text style={styles.timeTravelDesc}>
+                Preview how the Moon's phase and lighting evolve day by day.
+              </Text>
+              <View style={styles.dateControlRow}>
+                <TouchableOpacity
+                  style={styles.dateStepBtn}
+                  onPress={() => changeDateOffset(-1)}
+                >
+                  <Text style={styles.dateStepText}>-1 Day</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.dateCenterBtn} onPress={resetToToday}>
+                  <Text style={styles.dateCenterText}>
+                    {dayOffset === 0
+                      ? 'Today (Live)'
+                      : `${dayOffset > 0 ? '+' : ''}${dayOffset}d`}
+                  </Text>
+                  <Text style={styles.dateSubText}>
+                    {currentDate.toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.dateStepBtn}
+                  onPress={() => changeDateOffset(1)}
+                >
+                  <Text style={styles.dateStepText}>+1 Day</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          );
+        default:
+          return null;
+      }
+    },
+    [
+      astronomy,
+      moonScale,
+      showOrbiter,
+      dayOffset,
+      currentDate,
+      adjustMoonSize,
+    ]
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -179,6 +456,7 @@ export default function App() {
           moonScale={moonScale}
           showOrbiter={showOrbiter}
           hasHUD={showTelemetryHUD}
+          dayOffset={dayOffset}
         />
 
         {/* Top Header & GPS Status Bar with Moon percentage */}
@@ -186,19 +464,17 @@ export default function App() {
           <View style={styles.topLeftContainer} pointerEvents="auto">
             <Text style={styles.brandTitle}>ASTRA • LUNAR OBSERVER</Text>
             <View style={styles.statusRow}>
-              <View style={styles.gpsRow}>
-                <Text style={styles.gpsDot}>●</Text>
-                <Text style={styles.gpsText} numberOfLines={1}>
-                  {isLoadingLocation ? (
-                    'Acquiring GPS fix...'
-                  ) : (
-                    `${formatCoord(location?.latitude, true)}, ${formatCoord(
-                      location?.longitude,
+              {location != null && (
+                <View style={styles.gpsRow}>
+                  <Text style={styles.gpsDot}>●</Text>
+                  <Text style={styles.gpsText} numberOfLines={1}>
+                    {`${formatCoord(location.latitude, true)}, ${formatCoord(
+                      location.longitude,
                       false
-                    )} ${location?.city ? `(${location.city})` : ''}`
-                  )}
-                </Text>
-              </View>
+                    )} ${location.city ? `(${location.city})` : ''}`}
+                  </Text>
+                </View>
+              )}
               <View style={styles.topPhaseBadge}>
                 <Text style={styles.topPhaseEmoji}>{astronomy.phaseEmoji}</Text>
                 <Text style={styles.topPhasePercent}>{astronomy.illuminationPercent}% Full</Text>
@@ -231,214 +507,31 @@ export default function App() {
           </View>
 
             <ScrollView
+              ref={scrollViewRef}
               horizontal
               showsHorizontalScrollIndicator={false}
-              snapToInterval={cardWidth + 12}
+              snapToInterval={cardStep}
               decelerationRate="fast"
               snapToAlignment="start"
               contentContainerStyle={styles.horizontalScrollContent}
               pointerEvents="auto"
+              contentOffset={{ x: initialScrollX, y: 0 }}
+              onLayout={handleScrollLayout}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              onScrollEndDrag={handleScrollEndDrag}
             >
-              {/* Card 1: Moon Phase & Core Metrics */}
-              <View style={[styles.card, { width: cardWidth }]}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.phaseEmoji}>{astronomy.phaseEmoji}</Text>
-                  <View style={styles.phaseTitleContainer}>
-                    <View style={styles.phaseTitleRow}>
-                      <Text style={styles.phaseName}>{astronomy.phaseName}</Text>
-                      <View style={styles.fullPercentBadge}>
-                        <Text style={styles.fullPercentBadgeText}>
-                          {astronomy.illuminationPercent}% FULL
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.phaseSub}>
-                      {astronomy.illuminationPercent}% Illuminated •{' '}
-                      {astronomy.isWaxing ? 'Waxing' : 'Waning'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Progress bar of lunar cycle to Full Moon */}
-                <View style={styles.progressBarSection}>
-                  <View style={styles.progressLabelsRow}>
-                    <Text style={styles.progressLabel}>0% (NEW)</Text>
-                    <Text style={styles.progressLabelHighlight}>
-                      {astronomy.illuminationPercent}% FULL MOON
-                    </Text>
-                    <Text style={styles.progressLabel}>100% (FULL)</Text>
-                  </View>
-                  <View style={styles.progressBarTrack}>
+              {[0, 1, 2, 3, 4].map((setIdx) => (
+                <React.Fragment key={`set-${setIdx}`}>
+                  {[0, 1, 2, 3].map((cardIdx) => (
                     <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: `${Math.min(100, Math.max(2, astronomy.illuminationPercent))}%` },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                {/* Astronomical Metrics Grid */}
-                <View style={styles.metricsGrid}>
-                  <View style={styles.metricItem}>
-                    <Text style={styles.metricLabel}>MOON AGE</Text>
-                    <Text style={styles.metricValue}>{astronomy.moonAgeDays} d</Text>
-                  </View>
-                  <View style={styles.metricItem}>
-                    <Text style={styles.metricLabel}>DISTANCE</Text>
-                    <Text style={styles.metricValue}>
-                      {astronomy.moonDistanceKm.toLocaleString()} km
-                    </Text>
-                  </View>
-                  <View style={styles.metricItem}>
-                    <Text style={styles.metricLabel}>ELONGATION</Text>
-                    <Text style={styles.metricValue}>{astronomy.elongationDeg}°</Text>
-                  </View>
-                  <View style={styles.metricItem}>
-                    <Text style={styles.metricLabel}>HEMISPHERE</Text>
-                    <Text style={styles.metricValue}>
-                      {astronomy.isSouthernHemisphere ? 'Southern' : 'Northern'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Card 2: Moon Size Adjustment & Presets */}
-              <View style={[styles.card, { width: cardWidth }]}>
-                <Text style={styles.controlsTitle}>MOON SIZE ADJUSTMENT</Text>
-                <View style={styles.sizeControlRow}>
-                  <TouchableOpacity
-                    style={styles.sizeBtn}
-                    onPress={() => adjustMoonSize(-0.1)}
-                  >
-                    <Text style={styles.sizeBtnText}>－ Shrink</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.sizeCenterBtn}
-                    onPress={() => setMoonScale(1.0)}
-                  >
-                    <Text style={styles.sizeCenterVal}>{Math.round(moonScale * 100)}%</Text>
-                    <Text style={styles.sizeCenterSub}>Tap to Reset</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.sizeBtn}
-                    onPress={() => adjustMoonSize(0.1)}
-                  >
-                    <Text style={styles.sizeBtnText}>＋ Enlarge</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Quick Presets */}
-                <View style={styles.presetsRow}>
-                  {[
-                    { label: 'Small', scale: 0.75 },
-                    { label: 'Default', scale: 1.0 },
-                    { label: 'Large', scale: 1.25 },
-                    { label: 'Max', scale: 1.5 },
-                  ].map((item) => (
-                    <TouchableOpacity
-                      key={item.label}
-                      style={[
-                        styles.presetPill,
-                        Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillActive,
-                      ]}
-                      onPress={() => setMoonScale(item.scale)}
+                      key={`card-${setIdx}-${cardIdx}`}
+                      style={[styles.card, { width: cardWidth }]}
                     >
-                      <Text
-                        style={[
-                          styles.presetPillText,
-                          Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillTextActive,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
+                      {renderCardContent(cardIdx)}
+                    </View>
                   ))}
-                </View>
-              </View>
-
-              {/* Card 3: Active Spacecraft (NASA LRO) */}
-              <View style={[styles.card, { width: cardWidth }]}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.orbiterEmoji}>🛰️</Text>
-                  <View style={styles.phaseTitleContainer}>
-                    <Text style={styles.orbiterTitle}>NASA LRO</Text>
-                    <Text style={styles.orbiterSub}>Behind-to-Front Polar Orbit</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.activeBadge, !showOrbiter && styles.activeBadgeOff]}
-                    onPress={() => setShowOrbiter((v) => !v)}
-                  >
-                    <Text style={styles.activeBadgeText}>
-                      {showOrbiter ? 'ORBITER: ON' : 'ORBITER: OFF'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.orbiterDesc}>
-                  Circulating from behind the Moon across the front illuminated face.
-                  Dynamically scales in sync with the Moon ({Math.round(moonScale * 100)}%).
-                </Text>
-
-                <View style={styles.orbiterMetricsRow}>
-                  <View style={styles.orbiterMetric}>
-                    <Text style={styles.orbiterMetricLabel}>ALTITUDE</Text>
-                    <Text style={styles.orbiterMetricVal}>~50 km</Text>
-                  </View>
-                  <View style={styles.orbiterMetric}>
-                    <Text style={styles.orbiterMetricLabel}>ORBIT</Text>
-                    <Text style={styles.orbiterMetricVal}>Behind→Front</Text>
-                  </View>
-                  <View style={styles.orbiterMetric}>
-                    <Text style={styles.orbiterMetricLabel}>SPEED</Text>
-                    <Text style={styles.orbiterMetricVal}>1.6 km/s</Text>
-                  </View>
-                  <View style={styles.orbiterMetric}>
-                    <Text style={styles.orbiterMetricLabel}>LRO SCALE</Text>
-                    <Text style={styles.orbiterMetricVal}>{Math.round(moonScale * 100)}%</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Card 4: Phase Time Travel */}
-              <View style={[styles.card, { width: cardWidth }]}>
-                <Text style={styles.controlsTitle}>PHASE TIME TRAVEL</Text>
-                <Text style={styles.timeTravelDesc}>
-                  Preview how the Moon's phase and lighting evolve day by day.
-                </Text>
-                <View style={styles.dateControlRow}>
-                  <TouchableOpacity
-                    style={styles.dateStepBtn}
-                    onPress={() => changeDateOffset(-1)}
-                  >
-                    <Text style={styles.dateStepText}>-1 Day</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.dateCenterBtn} onPress={resetToToday}>
-                    <Text style={styles.dateCenterText}>
-                      {dayOffset === 0
-                        ? 'Today (Live)'
-                        : `${dayOffset > 0 ? '+' : ''}${dayOffset}d`}
-                    </Text>
-                    <Text style={styles.dateSubText}>
-                      {currentDate.toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.dateStepBtn}
-                    onPress={() => changeDateOffset(1)}
-                  >
-                    <Text style={styles.dateStepText}>+1 Day</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                </React.Fragment>
+              ))}
             </ScrollView>
         </Animated.View>
 
