@@ -15,6 +15,21 @@
       "bundleIdentifier": "com.nqv.astra",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "UIRequiresFullScreen": true,
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UIApplicationSceneManifest": {
+          "UIApplicationSupportsMultipleScenes": false,
+          "UISceneConfigurations": {
+            "UIWindowSceneSessionRoleApplication": [
+              {
+                "UISceneConfigurationName": "Default Configuration",
+                "UISceneDelegateClassName": "$(PRODUCT_MODULE_NAME).SceneDelegate"
+              }
+            ]
+          }
+        },
         "NSLocationWhenInUseUsageDescription": "Astra uses your location to compute accurate topocentric Moon phase, orientation, and astronomical solar lighting for your sky."
       }
     },
@@ -26,13 +41,16 @@
       "package": "com.nqv.astra",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withIosSceneDelegate",
       "expo-status-bar",
       "expo-asset",
       [
@@ -101,6 +119,11 @@
         }
       ]
     ],
-    "owner": "nqv"
+    "owner": "nqv",
+    "extra": {
+      "eas": {
+        "projectId": "93993c7c-52d6-4d25-adb6-c5f8ef67f2c5"
+      }
+    }
   }
 }
