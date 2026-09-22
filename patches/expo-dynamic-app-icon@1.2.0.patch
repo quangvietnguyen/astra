@@ -1,0 +1,57 @@
+diff --git a/ios/ExpoDynamicAppIconModule.swift b/ios/ExpoDynamicAppIconModule.swift
+index 429bfe2ce3ecf986315ecdf6c19b6e89c3426e6e..60ed9315912ac821f4b3fd7ea6049c310ee3978e 100644
+--- a/ios/ExpoDynamicAppIconModule.swift
++++ b/ios/ExpoDynamicAppIconModule.swift
+@@ -1,14 +1,13 @@
+ import ExpoModulesCore
++import UIKit
+ 
+ public class ExpoDynamicAppIconModule: Module {
+   public func definition() -> ModuleDefinition {
+-    
+     Name("ExpoDynamicAppIcon")
+ 
+-    Function("setAppIcon") { (name:String) -> String in
++    Function("setAppIcon") { (name: String?) -> String in
+       self.setAppIconWithoutAlert(name)
+-
+-      return name
++      return name ?? "DEFAULT"
+     }
+ 
+     Function("getAppIcon") { () -> String in
+@@ -17,16 +16,26 @@ public class ExpoDynamicAppIconModule: Module {
+   }
+ 
+   private func setAppIconWithoutAlert(_ iconName: String?) {
+-    if UIApplication.shared.responds(to: #selector(getter: UIApplication.supportsAlternateIcons)) && UIApplication.shared.supportsAlternateIcons {
+-      typealias setAlternateIconName = @convention(c) (NSObject, Selector, NSString?, @escaping (NSError) -> ()) -> ()
+-      
++    DispatchQueue.main.async {
++      // Ensure alert suppression is activated before changing alternate icon
++      let swizzleSelector = NSSelectorFromString("astra_enableAlertSuppressionForDynamicIcon")
++      if UIViewController.responds(to: swizzleSelector) {
++        UIViewController.perform(swizzleSelector)
++      }
++
++      guard UIApplication.shared.supportsAlternateIcons else { return }
++
++      typealias setAlternateIconNameClosure = @convention(c) (NSObject, Selector, NSString?, @escaping (NSError?) -> ()) -> ()
+       let selectorString = "_setAlternateIconName:completionHandler:"
+-      
+       let selector = NSSelectorFromString(selectorString)
+-      let imp = UIApplication.shared.method(for: selector)
+-      let method = unsafeBitCast(imp, to: setAlternateIconName.self)
+-      method(UIApplication.shared, selector, iconName as NSString?, { _ in })
++
++      if UIApplication.shared.responds(to: selector),
++         let imp = UIApplication.shared.method(for: selector) {
++        let method = unsafeBitCast(imp, to: setAlternateIconNameClosure.self)
++        method(UIApplication.shared, selector, iconName as NSString?, { _ in })
++      } else {
++        UIApplication.shared.setAlternateIconName(iconName) { _ in }
++      }
+     }
+   }
+-
+ }

@@ -1,0 +1,2 @@
+patchedDependencies:
+  expo-dynamic-app-icon@1.2.0: patches/expo-dynamic-app-icon@1.2.0.patch

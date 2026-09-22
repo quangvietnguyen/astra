@@ -45,6 +45,8 @@ export function isDynamicAppIconAvailable() {
   return false;
 }
 
+let lastSyncedIconKey = null;
+
 /**
  * Updates the iOS/Android app icon to match the given lunar phase.
  * Gracefully no-ops in Expo Go, web, simulators, and standard dev builds (will only
@@ -64,6 +66,11 @@ export async function syncAppIconWithPhase(phaseName, isEclipse = false) {
     return false;
   }
 
+  // Avoid redundant calls within the same session
+  if (lastSyncedIconKey === iconKey) {
+    return true;
+  }
+
   try {
     const DynamicAppIcon = require('expo-dynamic-app-icon');
     if (!DynamicAppIcon || !DynamicAppIcon.setAppIcon) {
@@ -74,8 +81,10 @@ export async function syncAppIconWithPhase(phaseName, isEclipse = false) {
     // On iOS, default icon returns null or string
     if (currentIcon !== iconKey) {
       const result = await DynamicAppIcon.setAppIcon(iconKey);
+      lastSyncedIconKey = iconKey;
       return result;
     }
+    lastSyncedIconKey = iconKey;
     return true;
   } catch (err) {
     return false;

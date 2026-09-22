@@ -22,6 +22,7 @@ import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 export default function App() {
   const { width: windowWidth } = useWindowDimensions();
   const isTablet = windowWidth >= 768;
+  const isCompactTablet = isTablet && windowWidth < 1180;
   const cardWidth = Math.min(310, Math.max(270, windowWidth - 56));
 
   const [location, setLocation] = React.useState(null);
@@ -53,7 +54,7 @@ export default function App() {
   // Interpolations for fluid sliding
   const hudTranslateY = hudAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [isTablet ? 480 : 360, 0],
+    outputRange: [isTablet ? (isCompactTablet ? 520 : 380) : 360, 0],
   });
 
   const hudOpacity = hudAnim.interpolate({
@@ -274,6 +275,9 @@ export default function App() {
                           isMoonEclipse && styles.fullPercentBadgeTextEclipse,
                           isMidAutumn && styles.fullPercentBadgeTextMidAutumn,
                         ]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
                       >
                         {isMoonEclipse
                           ? 'BLOOD MOON'
@@ -303,6 +307,8 @@ export default function App() {
                       isMoonEclipse && styles.progressLabelHighlightEclipse,
                       isMidAutumn && styles.progressLabelHighlightMidAutumn,
                     ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                   >
                     {isMoonEclipse
                       ? 'UMBRA TOTALITY'
@@ -333,27 +339,27 @@ export default function App() {
               {/* Astronomical Metrics Grid */}
               <View style={styles.metricsGrid}>
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>MOON AGE</Text>
-                  <Text style={styles.metricValue}>{astronomy.moonAgeDays} d</Text>
+                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">MOON AGE</Text>
+                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{astronomy.moonAgeDays} d</Text>
                 </View>
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>DISTANCE</Text>
-                  <Text style={styles.metricValue}>
+                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">DISTANCE</Text>
+                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                     {astronomy.moonDistanceKm.toLocaleString()} km
                   </Text>
                 </View>
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>ELONGATION</Text>
-                  <Text style={styles.metricValue}>{astronomy.elongationDeg}°</Text>
+                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">ELONGATION</Text>
+                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{astronomy.elongationDeg}°</Text>
                 </View>
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>HEMISPHERE</Text>
-                  <Text style={styles.metricValue}>
+                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">HEMISPHERE</Text>
+                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                     {location != null
                       ? astronomy.isSouthernHemisphere
                         ? 'Southern'
                         : 'Northern'
-                      : 'Equatorial (0°)'}
+                      : 'Equatorial'}
                   </Text>
                 </View>
               </View>
@@ -362,28 +368,28 @@ export default function App() {
         case 1:
           return (
             <>
-              <Text style={styles.controlsTitle}>MOON SIZE ADJUSTMENT</Text>
+              <Text style={styles.controlsTitle} numberOfLines={1}>MOON SIZE ADJUSTMENT</Text>
               <View style={styles.sizeControlRow}>
                 <TouchableOpacity
                   style={styles.sizeBtn}
                   onPress={() => adjustMoonSize(-0.1)}
                 >
-                  <Text style={styles.sizeBtnText}>－ Shrink</Text>
+                  <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>－ Shrink</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.sizeCenterBtn}
                   onPress={() => setMoonScale(1.0)}
                 >
-                  <Text style={styles.sizeCenterVal}>{Math.round(moonScale * 100)}%</Text>
-                  <Text style={styles.sizeCenterSub}>Tap to Reset</Text>
+                  <Text style={styles.sizeCenterVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{Math.round(moonScale * 100)}%</Text>
+                  <Text style={styles.sizeCenterSub} numberOfLines={1}>Tap to Reset</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.sizeBtn}
                   onPress={() => adjustMoonSize(0.1)}
                 >
-                  <Text style={styles.sizeBtnText}>＋ Enlarge</Text>
+                  <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>＋ Enlarge</Text>
                 </TouchableOpacity>
               </View>
 
@@ -408,6 +414,9 @@ export default function App() {
                         styles.presetPillText,
                         Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillTextActive,
                       ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
                     >
                       {item.label}
                     </Text>
@@ -422,40 +431,40 @@ export default function App() {
               <View style={styles.cardHeader}>
                 <Text style={styles.orbiterEmoji}>🛰️</Text>
                 <View style={styles.phaseTitleContainer}>
-                  <Text style={styles.orbiterTitle}>NASA LRO</Text>
-                  <Text style={styles.orbiterSub}>Behind-to-Front Polar Orbit</Text>
+                  <Text style={styles.orbiterTitle} numberOfLines={1} ellipsizeMode="tail">NASA LRO</Text>
+                  <Text style={styles.orbiterSub} numberOfLines={1} ellipsizeMode="tail">Behind-to-Front Polar Orbit</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.activeBadge, !showOrbiter && styles.activeBadgeOff]}
                   onPress={() => setShowOrbiter((v) => !v)}
                 >
-                  <Text style={styles.activeBadgeText}>
+                  <Text style={styles.activeBadgeText} numberOfLines={1}>
                     {showOrbiter ? 'ORBITER: ON' : 'ORBITER: OFF'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.orbiterDesc}>
+              <Text style={styles.orbiterDesc} numberOfLines={2} ellipsizeMode="tail">
                 Circulating from behind the Moon across the front illuminated face.
                 Dynamically scales in sync with the Moon ({Math.round(moonScale * 100)}%).
               </Text>
 
               <View style={styles.orbiterMetricsRow}>
                 <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel}>ALTITUDE</Text>
-                  <Text style={styles.orbiterMetricVal}>~50 km</Text>
+                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ALTITUDE</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>~50 km</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel}>ORBIT</Text>
-                  <Text style={styles.orbiterMetricVal}>Behind→Front</Text>
+                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ORBIT</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Behind→Front</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel}>SPEED</Text>
-                  <Text style={styles.orbiterMetricVal}>1.6 km/s</Text>
+                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">SPEED</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>1.6 km/s</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel}>LRO SCALE</Text>
-                  <Text style={styles.orbiterMetricVal}>{Math.round(moonScale * 100)}%</Text>
+                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">LRO SCALE</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{Math.round(moonScale * 100)}%</Text>
                 </View>
               </View>
             </>
@@ -464,8 +473,8 @@ export default function App() {
           return (
             <>
               <View>
-                <Text style={styles.controlsTitle}>PHASE TIME TRAVEL</Text>
-                <Text style={styles.timeTravelDesc}>
+                <Text style={styles.controlsTitle} numberOfLines={1}>PHASE TIME TRAVEL</Text>
+                <Text style={styles.timeTravelDesc} numberOfLines={2} ellipsizeMode="tail">
                   Preview how the Moon's phase and lighting evolve day by day.
                 </Text>
               </View>
@@ -475,16 +484,16 @@ export default function App() {
                   style={styles.dateStepBtn}
                   onPress={() => changeDateOffset(-1)}
                 >
-                  <Text style={styles.dateStepText}>-1 Day</Text>
+                  <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>-1 Day</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.dateCenterBtn} onPress={resetToToday}>
-                  <Text style={styles.dateCenterText}>
+                  <Text style={styles.dateCenterText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                     {dayOffset === 0
                       ? 'Today (Live)'
                       : `${dayOffset > 0 ? '+' : ''}${dayOffset}d`}
                   </Text>
-                  <Text style={styles.dateSubText}>
+                  <Text style={styles.dateSubText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                     {currentDate.toLocaleDateString(undefined, {
                       month: 'short',
                       day: 'numeric',
@@ -497,7 +506,7 @@ export default function App() {
                   style={styles.dateStepBtn}
                   onPress={() => changeDateOffset(1)}
                 >
-                  <Text style={styles.dateStepText}>+1 Day</Text>
+                  <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>+1 Day</Text>
                 </TouchableOpacity>
               </View>
 
@@ -523,6 +532,9 @@ export default function App() {
                         styles.presetPillText,
                         item.isReset && dayOffset === 0 && styles.presetPillTextActive,
                       ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
                     >
                       {item.label}
                     </Text>
@@ -638,9 +650,18 @@ export default function App() {
           </View>
 
           {isTablet ? (
-            <View style={styles.tabletCardsDeck} pointerEvents="auto">
+            <View
+              style={[
+                styles.tabletCardsDeck,
+                isCompactTablet && styles.tabletCardsDeckCompact,
+              ]}
+              pointerEvents="auto"
+            >
               {[0, 1, 2, 3].map((cardIdx) => (
-                <View key={`tablet-card-${cardIdx}`} style={styles.tabletCard}>
+                <View
+                  key={`tablet-card-${cardIdx}`}
+                  style={[styles.tabletCard, isCompactTablet && styles.tabletCardCompact]}
+                >
                   {renderCardContent(cardIdx)}
                 </View>
               ))}
@@ -783,8 +804,13 @@ const styles = StyleSheet.create({
     maxWidth: 1360,
     alignSelf: 'center',
   },
+  tabletCardsDeckCompact: {
+    flexWrap: 'wrap',
+    maxWidth: 980,
+  },
   tabletCard: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: 'rgba(9, 14, 26, 0.90)',
     borderRadius: 16,
     padding: 14,
@@ -792,6 +818,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(113, 128, 150, 0.25)',
     justifyContent: 'space-between',
     height: 188,
+    overflow: 'hidden',
+  },
+  tabletCardCompact: {
+    flexGrow: 0,
+    flexBasis: '48%',
   },
   gpsRow: {
     flexDirection: 'row',
@@ -979,12 +1010,15 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.5,
+    flex: 1,
   },
   progressLabelHighlight: {
     color: '#f1c40f',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
+    flex: 1.4,
+    textAlign: 'center',
   },
   progressBarTrack: {
     height: 4,
@@ -1007,6 +1041,8 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   metricItem: {
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
   },
   metricLabel: {
@@ -1129,6 +1165,8 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   orbiterMetric: {
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
   },
   orbiterMetricLabel: {
@@ -1163,10 +1201,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   dateStepBtn: {
+    flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 6,
     paddingVertical: 7,
     borderRadius: 8,
+    alignItems: 'center',
   },
   dateStepText: {
     color: '#f1f2f6',
@@ -1174,7 +1214,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dateCenterBtn: {
+    flex: 1.35,
+    minWidth: 0,
     alignItems: 'center',
+    paddingHorizontal: 4,
   },
   dateCenterText: {
     color: '#00d2d3',
