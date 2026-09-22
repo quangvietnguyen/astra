@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
-import { getMoonAstronomy } from './src/utils/astronomy';
+import { getMoonAstronomy, isLunarEclipse, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 
 export default function App() {
@@ -31,7 +31,6 @@ export default function App() {
   const [moonScale, setMoonScale] = React.useState(1.0);
   const [showTelemetryHUD, setShowTelemetryHUD] = React.useState(true);
   const [showOrbiter, setShowOrbiter] = React.useState(true);
-  const [celestialEvent, setCelestialEvent] = React.useState('standard'); // 'standard' | 'eclipse' | 'mid_autumn'
 
   // Silky smooth native driver animated value (1 = HUD visible, 0 = HUD hidden)
   const hudAnim = React.useRef(new Animated.Value(1)).current;
@@ -153,26 +152,30 @@ export default function App() {
     return getMoonAstronomy(currentDate, lat, lon);
   }, [currentDate, lat, lon]);
 
-  // Check if viewing date is in Mid-Autumn season (8th lunar month full moon in late Sep / early Oct)
-  const isAutoMidAutumn = React.useMemo(() => {
-    const month = currentDate.getMonth(); // 8 = Sep, 9 = Oct
-    return (month === 8 || month === 9) && (astronomy.phaseName === 'Full Moon' || astronomy.illuminationPercent >= 92);
-  }, [currentDate, astronomy.phaseName, astronomy.illuminationPercent]);
+  // Automatic astronomical calendar detection for Lunar Eclipse and Mid-Autumn Full Moon
+  const isMoonEclipse = React.useMemo(() => {
+    return isLunarEclipse(currentDate, astronomy);
+  }, [currentDate, astronomy]);
 
-  const isMoonEclipse = celestialEvent === 'eclipse';
-  const isMidAutumn = celestialEvent === 'mid_autumn' || (celestialEvent === 'standard' && isAutoMidAutumn);
+  const isMidAutumn = React.useMemo(() => {
+    return !isMoonEclipse && isMidAutumnFullMoon(currentDate, astronomy);
+  }, [currentDate, astronomy, isMoonEclipse]);
 
-  // Sync dynamic app icon with current lunar phase or active celestial event
+  // Sync dynamic app icon with current real-world lunar phase / astronomical event
   React.useEffect(() => {
-    const todayAstro = getMoonAstronomy(new Date(), lat, lon);
-    if (isMoonEclipse) {
+    const today = new Date();
+    const todayAstro = getMoonAstronomy(today, lat, lon);
+    const todayIsEclipse = isLunarEclipse(today, todayAstro);
+    const todayIsMidAutumn = isMidAutumnFullMoon(today, todayAstro);
+
+    if (todayIsEclipse) {
       syncAppIconWithPhase('Eclipse', true);
-    } else if (isMidAutumn) {
+    } else if (todayIsMidAutumn) {
       syncAppIconWithPhase('Full Moon', false);
     } else if (todayAstro?.phaseName) {
       syncAppIconWithPhase(todayAstro.phaseName, false);
     }
-  }, [lat, lon, isMoonEclipse, isMidAutumn]);
+  }, [lat, lon]);
 
   const formatCoord = (val, isLat) => {
     if (val == null) return '--';
@@ -249,11 +252,13 @@ export default function App() {
                         isMoonEclipse && styles.phaseNameEclipse,
                         isMidAutumn && styles.phaseNameMidAutumn,
                       ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                     >
                       {isMoonEclipse
-                        ? 'Total Lunar Eclipse'
+                        ? 'Total Eclipse'
                         : isMidAutumn
-                        ? 'Mid-Autumn Moon'
+                        ? 'Mid-Autumn'
                         : astronomy.phaseName}
                     </Text>
                     <View
@@ -278,12 +283,12 @@ export default function App() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.phaseSub}>
+                  <Text style={styles.phaseSub} numberOfLines={1} ellipsizeMode="tail">
                     {isMoonEclipse
-                      ? 'Earth Umbra • Atmospheric Rayleigh Refraction'
+                      ? 'Total Lunar Eclipse • Earth Umbra'
                       : isMidAutumn
-                      ? 'Harvest Festival • Golden Brilliant Luminescence'
-                      : `${astronomy.illuminationPercent}% Illuminated • ${astronomy.isWaxing ? 'Waxing' : 'Waning'}`}
+                      ? 'Autumn Festival • Golden Luminescence'
+                      : `${astronomy.zodiacSign} • ${astronomy.moonAltitudeDeg}° Altitude`}
                   </Text>
                 </View>
               </View>
@@ -322,66 +327,6 @@ export default function App() {
                       },
                     ]}
                   />
-                </View>
-              </View>
-
-              {/* Celestial Event Selector */}
-              <View style={styles.eventSelectorContainer}>
-                <Text style={styles.eventSelectorTitle}>CELESTIAL EVENT</Text>
-                <View style={styles.eventPillsRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.eventPill,
-                      celestialEvent === 'standard' && styles.eventPillActiveStandard,
-                    ]}
-                    onPress={() => setCelestialEvent('standard')}
-                  >
-                    <Text style={styles.eventPillEmoji}>⚪</Text>
-                    <Text
-                      style={[
-                        styles.eventPillText,
-                        celestialEvent === 'standard' && styles.eventPillTextActive,
-                      ]}
-                    >
-                      Standard
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.eventPill,
-                      celestialEvent === 'eclipse' && styles.eventPillActiveEclipse,
-                    ]}
-                    onPress={() => setCelestialEvent('eclipse')}
-                  >
-                    <Text style={styles.eventPillEmoji}>🔴</Text>
-                    <Text
-                      style={[
-                        styles.eventPillText,
-                        celestialEvent === 'eclipse' && styles.eventPillTextActiveEclipse,
-                      ]}
-                    >
-                      Eclipse
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.eventPill,
-                      celestialEvent === 'mid_autumn' && styles.eventPillActiveMidAutumn,
-                    ]}
-                    onPress={() => setCelestialEvent('mid_autumn')}
-                  >
-                    <Text style={styles.eventPillEmoji}>🏮</Text>
-                    <Text
-                      style={[
-                        styles.eventPillText,
-                        celestialEvent === 'mid_autumn' && styles.eventPillTextActiveMidAutumn,
-                      ]}
-                    >
-                      Mid-Autumn
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -518,10 +463,13 @@ export default function App() {
         case 3:
           return (
             <>
-              <Text style={styles.controlsTitle}>PHASE TIME TRAVEL</Text>
-              <Text style={styles.timeTravelDesc}>
-                Preview how the Moon's phase and lighting evolve day by day.
-              </Text>
+              <View>
+                <Text style={styles.controlsTitle}>PHASE TIME TRAVEL</Text>
+                <Text style={styles.timeTravelDesc}>
+                  Preview how the Moon's phase and lighting evolve day by day.
+                </Text>
+              </View>
+
               <View style={styles.dateControlRow}>
                 <TouchableOpacity
                   style={styles.dateStepBtn}
@@ -553,24 +501,33 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              {/* Event shortcuts in Time Travel */}
-              <View style={styles.eventQuickJumpRow}>
-                <TouchableOpacity
-                  style={[styles.jumpBtn, isMoonEclipse && styles.jumpBtnActiveEclipse]}
-                  onPress={() => setCelestialEvent(isMoonEclipse ? 'standard' : 'eclipse')}
-                >
-                  <Text style={styles.jumpBtnText}>
-                    {isMoonEclipse ? '✓ Blood Moon Active' : '🔴 Simulate Eclipse'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.jumpBtn, isMidAutumn && styles.jumpBtnActiveMidAutumn]}
-                  onPress={() => setCelestialEvent(isMidAutumn ? 'standard' : 'mid_autumn')}
-                >
-                  <Text style={styles.jumpBtnText}>
-                    {isMidAutumn ? '✓ Mid-Autumn Active' : '🏮 Mid-Autumn Moon'}
-                  </Text>
-                </TouchableOpacity>
+              {/* Quick Day Jumps fitting the card width */}
+              <View style={styles.presetsRow}>
+                {[
+                  { label: '-7d', delta: -7 },
+                  { label: '-1d', delta: -1 },
+                  { label: 'Today', delta: 0, isReset: true },
+                  { label: '+1d', delta: 1 },
+                  { label: '+7d', delta: 7 },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.label}
+                    style={[
+                      styles.presetPill,
+                      item.isReset && dayOffset === 0 && styles.presetPillActive,
+                    ]}
+                    onPress={() => (item.isReset ? resetToToday() : changeDateOffset(item.delta))}
+                  >
+                    <Text
+                      style={[
+                        styles.presetPillText,
+                        item.isReset && dayOffset === 0 && styles.presetPillTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </>
           );
@@ -585,7 +542,6 @@ export default function App() {
       dayOffset,
       currentDate,
       adjustMoonSize,
-      celestialEvent,
       isMoonEclipse,
       isMidAutumn,
       location,
@@ -835,7 +791,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(113, 128, 150, 0.25)',
     justifyContent: 'space-between',
-    minHeight: 210,
+    height: 188,
   },
   gpsRow: {
     flexDirection: 'row',
@@ -961,28 +917,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(113, 128, 150, 0.25)',
     justifyContent: 'space-between',
+    height: 168,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   phaseEmoji: {
     fontSize: 32,
     marginRight: 10,
+    marginTop: 2,
   },
   phaseTitleContainer: {
     flex: 1,
+    minWidth: 0,
   },
   phaseTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 6,
   },
   phaseName: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+    flexShrink: 1,
   },
   fullPercentBadge: {
     backgroundColor: 'rgba(241, 196, 15, 0.18)',
@@ -991,6 +952,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 10,
+    alignSelf: 'flex-start',
   },
   fullPercentBadgeText: {
     color: '#f1c40f',
@@ -1224,138 +1186,49 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   topPhaseBadgeEclipse: {
-    borderColor: 'rgba(231, 76, 60, 0.65)',
-    backgroundColor: 'rgba(45, 12, 12, 0.88)',
+    borderColor: 'rgba(217, 112, 78, 0.65)',
+    backgroundColor: 'rgba(42, 18, 14, 0.88)',
   },
   topPhasePercentEclipse: {
-    color: '#ff6b6b',
+    color: '#e57855',
   },
   topPhaseBadgeMidAutumn: {
-    borderColor: 'rgba(241, 196, 15, 0.70)',
-    backgroundColor: 'rgba(45, 36, 10, 0.88)',
+    borderColor: 'rgba(230, 190, 94, 0.70)',
+    backgroundColor: 'rgba(46, 38, 18, 0.88)',
   },
   topPhasePercentMidAutumn: {
-    color: '#ffd32a',
+    color: '#f6d27e',
   },
   phaseNameEclipse: {
-    color: '#ff6b6b',
+    color: '#e57855',
   },
   phaseNameMidAutumn: {
-    color: '#ffd32a',
+    color: '#f6d27e',
   },
   fullPercentBadgeEclipse: {
-    backgroundColor: 'rgba(231, 76, 60, 0.22)',
-    borderColor: '#e74c3c',
+    backgroundColor: 'rgba(217, 112, 78, 0.20)',
+    borderColor: '#d9704e',
   },
   fullPercentBadgeTextEclipse: {
-    color: '#ff6b6b',
+    color: '#e57855',
   },
   fullPercentBadgeMidAutumn: {
-    backgroundColor: 'rgba(241, 196, 15, 0.22)',
-    borderColor: '#f1c40f',
+    backgroundColor: 'rgba(246, 210, 126, 0.18)',
+    borderColor: '#e6be5e',
   },
   fullPercentBadgeTextMidAutumn: {
-    color: '#ffd32a',
+    color: '#f6d27e',
   },
   progressLabelHighlightEclipse: {
-    color: '#ff6b6b',
+    color: '#e57855',
   },
   progressLabelHighlightMidAutumn: {
-    color: '#ffd32a',
+    color: '#f6d27e',
   },
   progressBarFillEclipse: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: '#d9704e',
   },
   progressBarFillMidAutumn: {
-    backgroundColor: '#ffd32a',
-  },
-  eventSelectorContainer: {
-    marginTop: 8,
-  },
-  eventSelectorTitle: {
-    color: '#8395a7',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.1,
-    marginBottom: 5,
-  },
-  eventPillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  eventPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingVertical: 5,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(113, 128, 150, 0.25)',
-    gap: 4,
-  },
-  eventPillActiveStandard: {
-    backgroundColor: 'rgba(0, 210, 211, 0.16)',
-    borderColor: '#00d2d3',
-  },
-  eventPillActiveEclipse: {
-    backgroundColor: 'rgba(231, 76, 60, 0.22)',
-    borderColor: '#e74c3c',
-  },
-  eventPillActiveMidAutumn: {
-    backgroundColor: 'rgba(241, 196, 15, 0.22)',
-    borderColor: '#f1c40f',
-  },
-  eventPillEmoji: {
-    fontSize: 10,
-  },
-  eventPillText: {
-    color: '#a4b0be',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  eventPillTextActive: {
-    color: '#00d2d3',
-    fontWeight: '800',
-  },
-  eventPillTextActiveEclipse: {
-    color: '#ff6b6b',
-    fontWeight: '800',
-  },
-  eventPillTextActiveMidAutumn: {
-    color: '#ffd32a',
-    fontWeight: '800',
-  },
-  eventQuickJumpRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
-  },
-  jumpBtn: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(113, 128, 150, 0.25)',
-  },
-  jumpBtnActiveEclipse: {
-    backgroundColor: 'rgba(231, 76, 60, 0.22)',
-    borderColor: '#e74c3c',
-  },
-  jumpBtnActiveMidAutumn: {
-    backgroundColor: 'rgba(241, 196, 15, 0.22)',
-    borderColor: '#f1c40f',
-  },
-  jumpBtnText: {
-    color: '#dfe4ea',
-    fontSize: 10,
-    fontWeight: '700',
+    backgroundColor: '#f6d27e',
   },
 });

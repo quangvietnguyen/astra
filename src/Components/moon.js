@@ -27,20 +27,20 @@ function MoonCore({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutumn = 
   const materialProps = React.useMemo(() => {
     if (isMoonEclipse) {
       return {
-        color: '#c23616',
-        roughness: 0.70,
-        metalness: 0.04,
-        emissive: '#5c0606',
-        emissiveIntensity: 0.55,
+        color: '#96482e', // Authentic astronomical copper-rust regolith (Danjon L=3)
+        roughness: 0.72,
+        metalness: 0.02,
+        emissive: '#260e07', // Deep coppery mahogany umbral core
+        emissiveIntensity: 0.22,
       };
     }
     if (isMidAutumn) {
       return {
-        color: '#fff2cc',
-        roughness: 0.55,
+        color: '#fffdf7', // Slightly warmer than usual (radiant warm ivory/pearl, not yellow)
+        roughness: 0.48, // Silkier surface for heightened reflectivity & brilliance
         metalness: 0.02,
-        emissive: '#d48806',
-        emissiveIntensity: 0.35,
+        emissive: '#241f17', // Gentle warm luminance, avoiding dark mustard
+        emissiveIntensity: 0.16,
       };
     }
     return {
@@ -80,9 +80,9 @@ function SeamlessSunlitGlow({ radius, sunPos, isMoonEclipse = false, isMidAutumn
   }, [sunPos]);
 
   const targetGlowHex = isMoonEclipse
-    ? '#ff3b30'
+    ? '#c86438' // Warm copper-amber limb glow (Rayleigh scattering)
     : isMidAutumn
-    ? '#ffd32a'
+    ? '#fff6e2' // Luminous warm champagne/pearl halo (brighter, delicately warm)
     : '#d8ebff';
 
   const uniforms = React.useMemo(
@@ -167,16 +167,16 @@ function MoonFallback({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutum
       );
     }
   });
-  const fallbackColor = isMoonEclipse ? '#c23616' : isMidAutumn ? '#ffeaa7' : '#94a3b8';
+  const fallbackColor = isMoonEclipse ? '#96482e' : isMidAutumn ? '#fffdf7' : '#94a3b8';
   return (
     <mesh ref={ref} visible position={[0, 0, 0]}>
       <sphereGeometry args={[radius, 48, 24]} />
-      <meshStandardMaterial color={fallbackColor} roughness={0.7} />
+      <meshStandardMaterial color={fallbackColor} roughness={isMidAutumn ? 0.48 : 0.7} />
     </mesh>
   );
 }
 
-function MoonEclipse({ radius, opacity = 0.45, dayOffset = 0 }) {
+function MoonEclipse({ radius, opacity = 0.35, dayOffset = 0 }) {
   const ref = React.useRef();
   useFrame(({ clock }) => {
     if (ref.current) {
@@ -190,10 +190,10 @@ function MoonEclipse({ radius, opacity = 0.45, dayOffset = 0 }) {
     <mesh visible ref={ref} position={[0, 0, 0]}>
       <sphereGeometry args={[radius + 0.02, 64, 32]} />
       <meshPhongMaterial
-        color="#e74c3c"
-        emissive="#78110b"
-        specular="#ff7675"
-        shininess={15}
+        color="#a24e2c" // Natural coppery terracotta umbra
+        emissive="#240e07" // Deep earthy shadow
+        specular="#c9774f" // Soft copper highlight
+        shininess={12}
         transparent={true}
         opacity={opacity}
       />
@@ -278,17 +278,33 @@ export default function Moon({
   const currentOrbitRadius = currentRadius + 0.32 * moonScale;
 
   // Dynamic light colors and intensities based on astronomical event
-  const dirLightColor = isMoonEclipse ? '#ff4d4d' : isMidAutumn ? '#fff6cc' : '#ffffff';
-  const dirLightIntensity = isMoonEclipse ? 4.8 : isMidAutumn ? 9.5 : 6.5;
+  const dirLightColor = isMoonEclipse
+    ? '#bf633b' // Filtered warm copper sunlight passing through Earth's atmosphere
+    : isMidAutumn
+    ? '#fffdf5' // Ultra-bright, crisp warm white (subtly warm, brilliant)
+    : '#ffffff';
+  const dirLightIntensity = isMoonEclipse ? 4.0 : isMidAutumn ? 11.2 : 6.5;
 
-  const pointLightColor = isMoonEclipse ? '#d63031' : isMidAutumn ? '#ffeaa7' : '#fff8eb';
-  const pointLightIntensity = isMoonEclipse ? 4.0 : isMidAutumn ? 8.2 : 5.5;
+  const pointLightColor = isMoonEclipse
+    ? '#9c4524' // Deep coppery amber
+    : isMidAutumn
+    ? '#fffaf0' // Radiant ivory-white
+    : '#fff8eb';
+  const pointLightIntensity = isMoonEclipse ? 3.2 : isMidAutumn ? 9.5 : 5.5;
 
-  const specularColor = isMoonEclipse ? '#ff7675' : isMidAutumn ? '#fffae6' : '#eaf3ff';
-  const specularIntensity = isMoonEclipse ? 2.0 : isMidAutumn ? 4.2 : 2.8;
+  const specularColor = isMoonEclipse
+    ? '#c9774f' // Copper-peach specular glint
+    : isMidAutumn
+    ? '#ffffff' // Brilliant diamond specular glint
+    : '#eaf3ff';
+  const specularIntensity = isMoonEclipse ? 1.6 : isMidAutumn ? 5.2 : 2.8;
 
-  const ambientColor = isMoonEclipse ? '#300a0a' : isMidAutumn ? '#1c1c28' : '#121b28';
-  const ambientIntensity = isMoonEclipse ? 0.35 : isMidAutumn ? 0.32 : 0.22;
+  const ambientColor = isMoonEclipse
+    ? '#170e0a' // Deep coppery-gray cosmic shadow
+    : isMidAutumn
+    ? '#1e1c26' // Rich celestial ambient
+    : '#121b28';
+  const ambientIntensity = isMoonEclipse ? 0.20 : isMidAutumn ? 0.40 : 0.22;
 
   return (
     <Canvas camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}>
