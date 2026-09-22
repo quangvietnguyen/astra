@@ -5,6 +5,10 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 pnpm-debug.log*
+.env
+.env.*
+GoogleService-Info.plist
+google-services.json
 *.jks
 *.p8
 *.p12

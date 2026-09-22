@@ -62,21 +62,21 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash.png",
+          "image": "./assets/stars-milky-way.jpeg",
           "resizeMode": "cover",
-          "backgroundColor": "#071430",
+          "backgroundColor": "#000000",
           "enableFullScreenImage_legacy": true,
           "imageWidth": 288,
           "ios": {
-            "image": "./assets/splash.png",
+            "image": "./assets/stars-milky-way.jpeg",
             "resizeMode": "cover",
-            "backgroundColor": "#071430",
+            "backgroundColor": "#000000",
             "enableFullScreenImage_legacy": true
           },
           "android": {
-            "image": "./assets/splash.png",
+            "image": "./assets/stars-milky-way.jpeg",
             "resizeMode": "cover",
-            "backgroundColor": "#071430",
+            "backgroundColor": "#000000",
             "imageWidth": 288
           }
         }

@@ -16,6 +16,12 @@ import {
 } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
+import {
+  trackDateOffsetChange,
+  trackHudVisibility,
+  trackMoonSizeSelection,
+  trackOrbiterVisibility,
+} from './src/services/analyticsService';
 import { getMoonAstronomy, isLunarEclipse, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 
@@ -37,8 +43,9 @@ export default function App() {
   const hudAnim = React.useRef(new Animated.Value(1)).current;
 
   const toggleHUD = React.useCallback(
-    (show) => {
+    (show, source = 'button') => {
       setShowTelemetryHUD(show);
+      trackHudVisibility({ visible: show, source });
       Animated.spring(hudAnim, {
         toValue: show ? 1 : 0,
         damping: 22,
@@ -79,7 +86,7 @@ export default function App() {
       onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 6,
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 15 || gestureState.vy > 0.3) {
-          toggleHUD(false);
+          toggleHUD(false, 'swipe');
         }
       },
     })
@@ -92,7 +99,7 @@ export default function App() {
       onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy < -6,
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy < -15 || gestureState.vy < -0.3) {
-          toggleHUD(true);
+          toggleHUD(true, 'swipe');
         }
       },
     })
@@ -128,22 +135,42 @@ export default function App() {
   }, [dayOffset]);
 
   // Adjust date offset
-  const changeDateOffset = (delta) => {
+  const changeDateOffset = (delta, source, phaseName) => {
     const newOffset = dayOffset + delta;
     setDayOffset(newOffset);
     const d = new Date();
     d.setDate(d.getDate() + newOffset);
     setCurrentDate(d);
+    trackDateOffsetChange({ delta, offset: newOffset, source, phaseName });
   };
 
-  const resetToToday = () => {
+  const resetToToday = (source, phaseName) => {
+    const previousOffset = dayOffset;
     setDayOffset(0);
     setCurrentDate(new Date());
+    trackDateOffsetChange({
+      delta: previousOffset === 0 ? 0 : -previousOffset,
+      offset: 0,
+      source,
+      phaseName,
+    });
   };
 
   // Adjust Moon size scale
-  const adjustMoonSize = (delta) => {
-    setMoonScale((prev) => Math.max(0.6, Math.min(1.6, Number((prev + delta).toFixed(1)))));
+  const selectMoonSize = (scale, method, phaseName) => {
+    const nextScale = Math.max(0.6, Math.min(1.6, Number(scale.toFixed(2))));
+    setMoonScale(nextScale);
+    trackMoonSizeSelection({ scale: nextScale, method, phaseName });
+  };
+
+  const adjustMoonSize = (delta, phaseName) => {
+    selectMoonSize(moonScale + delta, 'step', phaseName);
+  };
+
+  const toggleOrbiter = (phaseName) => {
+    const nextValue = !showOrbiter;
+    setShowOrbiter(nextValue);
+    trackOrbiterVisibility({ enabled: nextValue, phaseName });
   };
 
   // Compute astronomical lunar state
@@ -372,14 +399,14 @@ export default function App() {
               <View style={styles.sizeControlRow}>
                 <TouchableOpacity
                   style={styles.sizeBtn}
-                  onPress={() => adjustMoonSize(-0.1)}
+                  onPress={() => adjustMoonSize(-0.1, astronomy.phaseName)}
                 >
                   <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>－ Shrink</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.sizeCenterBtn}
-                  onPress={() => setMoonScale(1.0)}
+                  onPress={() => selectMoonSize(1.0, 'reset', astronomy.phaseName)}
                 >
                   <Text style={styles.sizeCenterVal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{Math.round(moonScale * 100)}%</Text>
                   <Text style={styles.sizeCenterSub} numberOfLines={1}>Tap to Reset</Text>
@@ -387,7 +414,7 @@ export default function App() {
 
                 <TouchableOpacity
                   style={styles.sizeBtn}
-                  onPress={() => adjustMoonSize(0.1)}
+                  onPress={() => adjustMoonSize(0.1, astronomy.phaseName)}
                 >
                   <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>＋ Enlarge</Text>
                 </TouchableOpacity>
@@ -407,7 +434,7 @@ export default function App() {
                       styles.presetPill,
                       Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillActive,
                     ]}
-                    onPress={() => setMoonScale(item.scale)}
+                    onPress={() => selectMoonSize(item.scale, 'preset', astronomy.phaseName)}
                   >
                     <Text
                       style={[
@@ -436,7 +463,7 @@ export default function App() {
                 </View>
                 <TouchableOpacity
                   style={[styles.activeBadge, !showOrbiter && styles.activeBadgeOff]}
-                  onPress={() => setShowOrbiter((v) => !v)}
+                  onPress={() => toggleOrbiter(astronomy.phaseName)}
                 >
                   <Text style={styles.activeBadgeText} numberOfLines={1}>
                     {showOrbiter ? 'ORBITER: ON' : 'ORBITER: OFF'}
@@ -482,12 +509,15 @@ export default function App() {
               <View style={styles.dateControlRow}>
                 <TouchableOpacity
                   style={styles.dateStepBtn}
-                  onPress={() => changeDateOffset(-1)}
+                  onPress={() => changeDateOffset(-1, 'step_button', astronomy.phaseName)}
                 >
                   <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>-1 Day</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.dateCenterBtn} onPress={resetToToday}>
+                <TouchableOpacity
+                  style={styles.dateCenterBtn}
+                  onPress={() => resetToToday('center_button', astronomy.phaseName)}
+                >
                   <Text style={styles.dateCenterText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                     {dayOffset === 0
                       ? 'Today (Live)'
@@ -504,7 +534,7 @@ export default function App() {
 
                 <TouchableOpacity
                   style={styles.dateStepBtn}
-                  onPress={() => changeDateOffset(1)}
+                  onPress={() => changeDateOffset(1, 'step_button', astronomy.phaseName)}
                 >
                   <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>+1 Day</Text>
                 </TouchableOpacity>
@@ -525,7 +555,11 @@ export default function App() {
                       styles.presetPill,
                       item.isReset && dayOffset === 0 && styles.presetPillActive,
                     ]}
-                    onPress={() => (item.isReset ? resetToToday() : changeDateOffset(item.delta))}
+                    onPress={() =>
+                      item.isReset
+                        ? resetToToday('preset', astronomy.phaseName)
+                        : changeDateOffset(item.delta, 'preset', astronomy.phaseName)
+                    }
                   >
                     <Text
                       style={[
@@ -554,6 +588,8 @@ export default function App() {
       dayOffset,
       currentDate,
       adjustMoonSize,
+      selectMoonSize,
+      toggleOrbiter,
       isMoonEclipse,
       isMidAutumn,
       location,
@@ -640,7 +676,7 @@ export default function App() {
           {/* Swipe Down Handle Indicator */}
           <View style={styles.swipeHandleArea} {...hidePanResponder.panHandlers}>
             <TouchableOpacity
-              onPress={() => toggleHUD(false)}
+              onPress={() => toggleHUD(false, 'button')}
               activeOpacity={0.7}
               style={styles.swipeHandlePill}
             >
@@ -710,7 +746,7 @@ export default function App() {
           {...showPanResponder.panHandlers}
         >
           <TouchableOpacity
-            onPress={() => toggleHUD(true)}
+            onPress={() => toggleHUD(true, 'button')}
             activeOpacity={0.7}
             style={styles.collapsedHandlePill}
           >
