@@ -1,0 +1,3 @@
+Welcome to Astra 1.0.
+
+Explore a phase-aware 3D Moon, review lunar telemetry, travel through dates, adjust the Moon's scale, and follow an animated LRO-inspired orbiter from iPhone or iPad.

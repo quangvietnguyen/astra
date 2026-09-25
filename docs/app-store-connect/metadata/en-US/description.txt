@@ -1,0 +1,27 @@
+Meet the Moon as it appears for your sky.
+
+Astra is an interactive 3D lunar observer for exploring the Moon's current phase, illumination, distance, age, and orbital geometry. Allow foreground location access for a view adjusted to your hemisphere, or continue without location using the default view.
+
+EXPLORE THE LUNAR CYCLE
+
+• View a detailed 3D Moon with phase-aware lighting
+• See illumination, Moon age, distance, elongation, and hemisphere
+• Move forward or backward in time to preview changing phases
+• Recognize special presentations for lunar eclipses and the Mid-Autumn full moon
+
+MAKE THE VIEW YOURS
+
+• Resize the Moon with quick presets or step controls
+• Hide the telemetry deck for an uninterrupted sky view
+• Swipe through focused controls on iPhone
+• See the complete telemetry deck on iPad
+
+FOLLOW THE ORBITER
+
+Toggle an animated, LRO-inspired spacecraft and watch its behind-to-front polar orbit around the Moon.
+
+DESIGNED FOR PRIVACY
+
+Astra requires no account and contains no advertising. Foreground location is optional. Precise GPS coordinates and city names are not included in analytics events.
+
+Astra is an independent educational visualization and is not affiliated with or endorsed by NASA. The orbiter is an artistic visualization inspired by the Lunar Reconnaissance Orbiter, not live mission telemetry. Astronomical values are estimates intended for education and general observation, not navigation or professional scientific planning.

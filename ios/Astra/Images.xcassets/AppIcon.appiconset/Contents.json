@@ -1,0 +1,45 @@
+{
+  "images": [
+    {
+      "filename": "App-Icon-1024x1024@1x.png",
+      "idiom": "universal",
+      "size": "1024x1024",
+      "scale": "1x",
+      "platform": "ios"
+    },
+    {
+      "filename": "AppIcon-76x76@1x.png",
+      "idiom": "ipad",
+      "size": "76x76",
+      "scale": "1x"
+    },
+    {
+      "filename": "AppIcon-76x76@2x.png",
+      "idiom": "ipad",
+      "size": "76x76",
+      "scale": "2x"
+    },
+    {
+      "filename": "AppIcon-83.5x83.5@2x.png",
+      "idiom": "ipad",
+      "size": "83.5x83.5",
+      "scale": "2x"
+    },
+    {
+      "filename": "AppIcon-60x60@2x.png",
+      "idiom": "iphone",
+      "size": "60x60",
+      "scale": "2x"
+    },
+    {
+      "filename": "AppIcon-60x60@3x.png",
+      "idiom": "iphone",
+      "size": "60x60",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "version": 1,
+    "author": "expo"
+  }
+}
