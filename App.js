@@ -32,7 +32,7 @@ export default function App() {
   const tabletColumns = tabletDeckWidth >= 4 * 310 * fontScale + 36 ? 4
     : tabletDeckWidth >= 2 * 310 * fontScale + 12 ? 2 : 1;
   const tabletCardWidth = (tabletDeckWidth - (tabletColumns - 1) * 12) / tabletColumns;
-  const tabletCardHeight = 264 * Math.max(1, fontScale);
+  const tabletCardMinHeight = 264 * Math.max(1, fontScale);
   const styles = React.useMemo(() => isTablet
     ? Object.fromEntries(Object.entries(baseStyles).map(([key, value]) => [
         key, tabletStyles[key] ? [value, tabletStyles[key]] : value,
@@ -376,21 +376,21 @@ export default function App() {
               <View style={styles.metricsGrid}>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">MOON AGE</Text>
-                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>{astronomy.moonAgeDays} d</Text>
+                  <Text style={styles.metricValue} numberOfLines={1}>{astronomy.moonAgeDays} d</Text>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">DISTANCE</Text>
-                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>
-                    {astronomy.moonDistanceKm.toLocaleString()} km
+                  <Text style={styles.metricValue} numberOfLines={2}>
+                    {`${astronomy.moonDistanceKm.toLocaleString()}\nkm`}
                   </Text>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">ELONGATION</Text>
-                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>{astronomy.elongationDeg}°</Text>
+                  <Text style={styles.metricValue} numberOfLines={1}>{astronomy.elongationDeg}°</Text>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">HEMISPHERE</Text>
-                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>
+                  <Text style={styles.metricValue} numberOfLines={1}>
                     {location != null
                       ? astronomy.isSouthernHemisphere
                         ? 'Southern'
@@ -488,19 +488,19 @@ export default function App() {
               <View style={styles.orbiterMetricsRow}>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ALTITUDE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>~50 km</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>~50 km</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ORBIT</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>Behind→Front</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={2}>{'Behind\n→ Front'}</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">SPEED</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>1.6 km/s</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>1.6 km/s</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">LRO SCALE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>{Math.round(moonScale * 100)}%</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>{Math.round(moonScale * 100)}%</Text>
                 </View>
               </View>
             </>
@@ -698,14 +698,14 @@ export default function App() {
 
           {isTablet ? (
             <ScrollView
-              style={{ flexGrow: 0, maxHeight: Math.min(windowHeight * 0.72, Math.ceil(4 / tabletColumns) * (tabletCardHeight + 12) - 12) }}
+              style={{ flexGrow: 0, maxHeight: windowHeight * 0.72 }}
               contentContainerStyle={[styles.tabletCardsDeck, { width: tabletDeckWidth }]}
               pointerEvents="auto"
             >
               {[0, 1, 2, 3].map((cardIdx) => (
                 <View
                   key={`tablet-card-${cardIdx}`}
-                  style={[styles.tabletCard, { width: tabletCardWidth, height: tabletCardHeight }]}
+                  style={[styles.tabletCard, { width: tabletCardWidth, minHeight: tabletCardMinHeight }]}
                 >
                   {renderCardContent(cardIdx)}
                 </View>
@@ -982,7 +982,7 @@ const baseStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(113, 128, 150, 0.25)',
     justifyContent: 'space-between',
-    height: 168,
+    minHeight: 168,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1088,8 +1088,11 @@ const baseStyles = StyleSheet.create({
   metricValue: {
     color: '#f1f2f6',
     fontSize: 13,
+    lineHeight: 15,
     fontWeight: '600',
     marginTop: 2,
+    minHeight: 30,
+    textAlign: 'center',
   },
   sizeControlRow: {
     flexDirection: 'row',
@@ -1210,9 +1213,12 @@ const baseStyles = StyleSheet.create({
   },
   orbiterMetricVal: {
     color: '#dfe4ea',
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 15,
     fontWeight: '600',
     marginTop: 2,
+    minHeight: 30,
+    textAlign: 'center',
   },
   controlsTitle: {
     color: '#747d8c',
