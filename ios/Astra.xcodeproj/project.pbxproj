@@ -260,7 +260,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.name.Astra;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nqv.astra;
 				PRODUCT_NAME = Astra;
 				SWIFT_OBJC_BRIDGING_HEADER = "Astra/Astra-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -288,7 +288,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.name.Astra;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nqv.astra;
 				PRODUCT_NAME = Astra;
 				SWIFT_OBJC_BRIDGING_HEADER = "Astra/Astra-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
