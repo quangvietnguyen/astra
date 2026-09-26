@@ -5,6 +5,30 @@ import moonImg from '../../assets/moon.jpeg';
 import LunarOrbiter from './LunarOrbiter';
 
 const BASE_MOON_RADIUS = 2.05;
+const MOTION_SPEED = 9;
+const PHASE_SPEED = 7;
+
+const blend = (delta, speed) => 1 - Math.exp(-speed * Math.min(delta, 0.1));
+const blendLight = (light, intensity, color, amount) => {
+  light.intensity = THREE.MathUtils.lerp(light.intensity, intensity, amount);
+  light.color.lerp(color, amount);
+};
+
+function useSmoothLunarRotation(ref, dayOffset) {
+  const initialized = React.useRef(false);
+  useFrame(({ clock }, delta) => {
+    if (!ref.current) return;
+    const target = -(clock.getElapsedTime() / SLOW_ROTATION_DIVISOR + dayOffset * LUNAR_ROTATION_PER_DAY_RAD);
+    if (!initialized.current) {
+      ref.current.rotation.y = target;
+      initialized.current = true;
+      return;
+    }
+    // Use the shortest angular path when the ruler crosses several dates at once.
+    const difference = Math.atan2(Math.sin(target - ref.current.rotation.y), Math.cos(target - ref.current.rotation.y));
+    ref.current.rotation.y += difference * blend(delta, PHASE_SPEED);
+  });
+}
 
 // Slow, majestic continuous rotation (1 full revolution every ~377 seconds / ~6.3 minutes)
 // Gives a graceful, visible celestial rotation while remaining calm and serene
@@ -13,16 +37,10 @@ export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / 27.321661;
 
 function MoonCore({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutumn = false }) {
   const ref = React.useRef();
+  const materialRef = React.useRef();
+  const initialized = React.useRef(false);
   const map = useLoader(TextureLoader, moonImg);
-  useFrame(({ clock }) => {
-    if (ref.current) {
-      // Slow continuous rotation + astronomical day offset step
-      ref.current.rotation.y = -(
-        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
-      );
-    }
-  });
+  useSmoothLunarRotation(ref, dayOffset);
 
   const materialProps = React.useMemo(() => {
     if (isMoonEclipse) {
@@ -52,14 +70,24 @@ function MoonCore({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutumn = 
     };
   }, [isMoonEclipse, isMidAutumn]);
 
+  const targetColor = React.useMemo(() => new THREE.Color(materialProps.color), [materialProps.color]);
+  const targetEmissive = React.useMemo(() => new THREE.Color(materialProps.emissive), [materialProps.emissive]);
+  useFrame((_, delta) => {
+    const material = materialRef.current;
+    if (!material) return;
+    const amount = initialized.current ? blend(delta, PHASE_SPEED) : 1;
+    material.color.lerp(targetColor, amount);
+    material.emissive.lerp(targetEmissive, amount);
+    material.roughness = THREE.MathUtils.lerp(material.roughness, materialProps.roughness, amount);
+    material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, materialProps.emissiveIntensity, amount);
+    initialized.current = true;
+  });
+
   return (
     <mesh ref={ref} visible castShadow position={[0, 0, 0]}>
       <sphereGeometry args={[radius, 64, 32]} />
       {/* Physically realistic lunar regolith: adapts color & bloom dynamically for Eclipse and Mid-Autumn */}
-      <meshStandardMaterial
-        map={map}
-        {...materialProps}
-      />
+      <meshStandardMaterial ref={materialRef} map={map} metalness={0.02} />
     </mesh>
   );
 }
@@ -71,6 +99,8 @@ function MoonCore({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutumn = 
  */
 function SeamlessSunlitGlow({ radius, sunPos, isMoonEclipse = false, isMidAutumn = false }) {
   const matRef = React.useRef();
+  const currentSunDir = React.useRef(new THREE.Vector3());
+  const initialized = React.useRef(false);
 
   const sunDir = React.useMemo(() => {
     const [sx, sy, sz] = sunPos;
@@ -92,19 +122,18 @@ function SeamlessSunlitGlow({ radius, sunPos, isMoonEclipse = false, isMidAutumn
     }),
     []
   );
+  const targetGlowColor = React.useMemo(() => new THREE.Color(targetGlowHex), [targetGlowHex]);
 
-  React.useEffect(() => {
+  useFrame(({ camera }, delta) => {
     if (matRef.current) {
-      matRef.current.uniforms.uGlowColor.value.set(targetGlowHex);
-    }
-  }, [targetGlowHex]);
-
-  useFrame(({ camera }) => {
-    if (matRef.current) {
+      const amount = initialized.current ? blend(delta, PHASE_SPEED) : 1;
+      currentSunDir.current.lerp(sunDir, amount).normalize();
       // Continuously update Sun direction in camera/view space
       matRef.current.uniforms.uSunDirView.value
-        .copy(sunDir)
+        .copy(currentSunDir.current)
         .transformDirection(camera.matrixWorldInverse);
+      matRef.current.uniforms.uGlowColor.value.lerp(targetGlowColor, amount);
+      initialized.current = true;
     }
   });
 
@@ -159,14 +188,7 @@ function SeamlessSunlitGlow({ radius, sunPos, isMoonEclipse = false, isMidAutumn
 
 function MoonFallback({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutumn = false }) {
   const ref = React.useRef();
-  useFrame(({ clock }) => {
-    if (ref.current) {
-      ref.current.rotation.y = -(
-        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
-      );
-    }
-  });
+  useSmoothLunarRotation(ref, dayOffset);
   const fallbackColor = isMoonEclipse ? '#96482e' : isMidAutumn ? '#fffdf7' : '#94a3b8';
   return (
     <mesh ref={ref} visible position={[0, 0, 0]}>
@@ -178,24 +200,26 @@ function MoonFallback({ radius, dayOffset = 0, isMoonEclipse = false, isMidAutum
 
 function MoonEclipse({ radius, opacity = 0.35, dayOffset = 0 }) {
   const ref = React.useRef();
-  useFrame(({ clock }) => {
-    if (ref.current) {
-      ref.current.rotation.y = -(
-        clock.getElapsedTime() / SLOW_ROTATION_DIVISOR +
-        dayOffset * LUNAR_ROTATION_PER_DAY_RAD
-      );
-    }
+  const materialRef = React.useRef();
+  const initialized = React.useRef(false);
+  useSmoothLunarRotation(ref, dayOffset);
+  useFrame((_, delta) => {
+    if (!materialRef.current) return;
+    materialRef.current.opacity = THREE.MathUtils.lerp(materialRef.current.opacity, opacity, initialized.current ? blend(delta, PHASE_SPEED) : 1);
+    initialized.current = true;
   });
   return (
     <mesh visible ref={ref} position={[0, 0, 0]}>
       <sphereGeometry args={[radius + 0.02, 64, 32]} />
       <meshPhongMaterial
+        ref={materialRef}
         color="#a24e2c" // Natural coppery terracotta umbra
         emissive="#240e07" // Deep earthy shadow
         specular="#c9774f" // Soft copper highlight
         shininess={12}
         transparent={true}
-        opacity={opacity}
+        opacity={0}
+        depthWrite={false}
       />
     </mesh>
   );
@@ -208,55 +232,89 @@ function MoonSystem({
   eclipseDarkness,
   showOrbiter,
   sunPos,
-  currentOrbitRadius,
   moonScale,
   targetY,
   dayOffset = 0,
 }) {
   const systemRef = React.useRef();
+  const initialPosition = React.useRef([0, targetY, 0]);
+  const initialScale = React.useRef(moonScale);
 
   useFrame((_, delta) => {
     if (systemRef.current) {
-      const dt = Math.min(delta, 0.1);
-      systemRef.current.position.y = THREE.MathUtils.damp
-        ? THREE.MathUtils.damp(systemRef.current.position.y, targetY, 4.8, dt)
-        : systemRef.current.position.y + (targetY - systemRef.current.position.y) * (1 - Math.exp(-4.8 * dt));
+      const amount = blend(delta, MOTION_SPEED);
+      systemRef.current.position.y = THREE.MathUtils.lerp(systemRef.current.position.y, targetY, amount);
+      systemRef.current.scale.setScalar(THREE.MathUtils.lerp(systemRef.current.scale.x, moonScale, amount));
     }
   });
 
   return (
-    <group ref={systemRef} position={[0, targetY, 0]}>
+    <group ref={systemRef} position={initialPosition.current} scale={initialScale.current}>
       <MoonCore radius={radius} dayOffset={dayOffset} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} />
       <SeamlessSunlitGlow radius={radius} sunPos={sunPos} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} />
-      {isMoonEclipse && <MoonEclipse radius={radius} opacity={eclipseDarkness} dayOffset={dayOffset} />}
+      <MoonEclipse radius={radius} opacity={isMoonEclipse ? eclipseDarkness : 0} dayOffset={dayOffset} />
       {showOrbiter && (
         <LunarOrbiter
           center={[0, 0, 0]}
-          orbitRadius={currentOrbitRadius}
+          orbitRadius={BASE_MOON_RADIUS + 0.32}
           orbitSpeed={0.35}
           showOrbitTrail={true}
           sunLightPosition={sunPos}
-          orbiterScale={moonScale}
+          orbiterScale={1}
         />
       )}
     </group>
   );
 }
 
-function MoonFallbackSystem({ radius, targetY, dayOffset = 0, isMoonEclipse = false, isMidAutumn = false }) {
+function MoonFallbackSystem({ radius, moonScale, targetY, dayOffset = 0, isMoonEclipse = false, isMidAutumn = false }) {
   const systemRef = React.useRef();
+  const initialPosition = React.useRef([0, targetY, 0]);
+  const initialScale = React.useRef(moonScale);
   useFrame((_, delta) => {
     if (systemRef.current) {
-      const dt = Math.min(delta, 0.1);
-      systemRef.current.position.y = THREE.MathUtils.damp
-        ? THREE.MathUtils.damp(systemRef.current.position.y, targetY, 4.8, dt)
-        : systemRef.current.position.y + (targetY - systemRef.current.position.y) * (1 - Math.exp(-4.8 * dt));
+      const amount = blend(delta, MOTION_SPEED);
+      systemRef.current.position.y = THREE.MathUtils.lerp(systemRef.current.position.y, targetY, amount);
+      systemRef.current.scale.setScalar(THREE.MathUtils.lerp(systemRef.current.scale.x, moonScale, amount));
     }
   });
   return (
-    <group ref={systemRef} position={[0, targetY, 0]}>
+    <group ref={systemRef} position={initialPosition.current} scale={initialScale.current}>
       <MoonFallback radius={radius} dayOffset={dayOffset} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} />
     </group>
+  );
+}
+
+function SmoothMoonLighting({ sunPos, dirLightColor, dirLightIntensity, pointLightColor, pointLightIntensity, specularColor, specularIntensity, ambientColor, ambientIntensity }) {
+  const directionalRef = React.useRef();
+  const pointRef = React.useRef();
+  const specularRef = React.useRef();
+  const ambientRef = React.useRef();
+  const initialized = React.useRef(false);
+  const sunTarget = React.useMemo(() => new THREE.Vector3(...sunPos), [sunPos[0], sunPos[1], sunPos[2]]);
+  const specularTarget = React.useMemo(() => new THREE.Vector3(sunPos[0] * 0.55, sunPos[1] * 0.55, Math.max(sunPos[2] * 0.55, 3)), [sunPos[0], sunPos[1], sunPos[2]]);
+  const colors = React.useMemo(() => [dirLightColor, pointLightColor, specularColor, ambientColor].map((color) => new THREE.Color(color)), [dirLightColor, pointLightColor, specularColor, ambientColor]);
+
+  useFrame((_, delta) => {
+    if (!directionalRef.current || !pointRef.current || !specularRef.current || !ambientRef.current) return;
+    const amount = initialized.current ? blend(delta, PHASE_SPEED) : 1;
+    directionalRef.current.position.lerp(sunTarget, amount);
+    pointRef.current.position.lerp(sunTarget, amount);
+    specularRef.current.position.lerp(specularTarget, amount);
+    blendLight(directionalRef.current, dirLightIntensity, colors[0], amount);
+    blendLight(pointRef.current, pointLightIntensity, colors[1], amount);
+    blendLight(specularRef.current, specularIntensity, colors[2], amount);
+    blendLight(ambientRef.current, ambientIntensity, colors[3], amount);
+    initialized.current = true;
+  });
+
+  return (
+    <>
+      <directionalLight ref={directionalRef} />
+      <pointLight ref={pointRef} decay={0} />
+      <pointLight ref={specularRef} decay={0} />
+      <ambientLight ref={ambientRef} />
+    </>
   );
 }
 
@@ -268,14 +326,12 @@ export default function Moon({
   eclipseDarkness = 0.45,
   showOrbiter = true,
   hasHUD = true,
+  hudCenterY = 0.70,
   dayOffset = 0,
 }) {
-  const targetY = hasHUD ? 0.70 : 0.0;
+  const targetY = hasHUD ? hudCenterY : 0.0;
   const [lx, ly, lz] = lightPosition;
   const sunPos = [lx, ly + targetY, lz];
-
-  const currentRadius = BASE_MOON_RADIUS * moonScale;
-  const currentOrbitRadius = currentRadius + 0.32 * moonScale;
 
   // Dynamic light colors and intensities based on astronomical event
   const dirLightColor = isMoonEclipse
@@ -308,25 +364,13 @@ export default function Moon({
 
   return (
     <Canvas camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}>
-      {/* 1. Ultra-brilliant direct solar beam from exact astronomical vector */}
-      <directionalLight position={sunPos} intensity={dirLightIntensity} color={dirLightColor} />
-      <pointLight position={sunPos} intensity={pointLightIntensity} decay={0} color={pointLightColor} />
-
-      {/* 2. Direct solar specular & sub-solar core illumination */}
-      <pointLight
-        position={[sunPos[0] * 0.55, sunPos[1] * 0.55, Math.max(sunPos[2] * 0.55, 3.0)]}
-        intensity={specularIntensity}
-        decay={0}
-        color={specularColor}
-      />
-
-      {/* 3. Cosmic Earthshine & ambient light */}
-      <ambientLight color={ambientColor} intensity={ambientIntensity} />
+      <SmoothMoonLighting sunPos={sunPos} dirLightColor={dirLightColor} dirLightIntensity={dirLightIntensity} pointLightColor={pointLightColor} pointLightIntensity={pointLightIntensity} specularColor={specularColor} specularIntensity={specularIntensity} ambientColor={ambientColor} ambientIntensity={ambientIntensity} />
 
       <React.Suspense
         fallback={
           <MoonFallbackSystem
-            radius={currentRadius}
+            radius={BASE_MOON_RADIUS}
+            moonScale={moonScale}
             targetY={targetY}
             dayOffset={dayOffset}
             isMoonEclipse={isMoonEclipse}
@@ -335,13 +379,12 @@ export default function Moon({
         }
       >
         <MoonSystem
-          radius={currentRadius}
+          radius={BASE_MOON_RADIUS}
           isMoonEclipse={isMoonEclipse}
           isMidAutumn={isMidAutumn}
           eclipseDarkness={eclipseDarkness}
           showOrbiter={showOrbiter}
           sunPos={sunPos}
-          currentOrbitRadius={currentOrbitRadius}
           moonScale={moonScale}
           targetY={targetY}
           dayOffset={dayOffset}

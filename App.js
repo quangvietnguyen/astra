@@ -1,1350 +1,332 @@
 import './src/utils/patchGL';
 import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Platform,
-  ImageBackground,
-  useWindowDimensions,
-  PanResponder,
-  Animated,
-} from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Switch, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
-import {
-  trackDateOffsetChange,
-  trackHudVisibility,
-  trackMoonSizeSelection,
-  trackOrbiterVisibility,
-} from './src/services/analyticsService';
+import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trackOrbiterVisibility } from './src/services/analyticsService';
 import { getMoonAstronomy, isLunarEclipse, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 
-export default function App() {
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isTablet = windowWidth >= 768;
-  const tabletDeckWidth = Math.min(windowWidth - 48, 1440);
-  const tabletCardWidth = Math.min(330, Math.max(290, tabletDeckWidth / 3.1));
-  const styles = React.useMemo(() => isTablet
-    ? Object.fromEntries(Object.entries(baseStyles).map(([key, value]) => [
-        key, tabletStyles[key] ? [value, tabletStyles[key]] : value,
-      ]))
-    : baseStyles, [isTablet]);
-  const cardWidth = Math.min(310, Math.max(270, windowWidth - 56));
+const THUMB_SIZE = 54;
+const ZOOM_THUMB_SIZE = 18;
+const DAY_WIDTH = 40;
+const TIMELINE_RADIUS = 90;
+const TIMELINE_DAYS = Array.from({ length: TIMELINE_RADIUS * 2 + 1 }, (_, index) => index - TIMELINE_RADIUS);
 
+export default function App() {
+  const { width, height } = useWindowDimensions();
+  const isIPad = Platform.OS === 'ios' && Platform.isPad;
+  const isIPhone = Platform.OS === 'ios' && !isIPad;
+  const isIPadLandscape = isIPad && width > height;
+  const isTablet = Platform.OS === 'ios' ? isIPad : width >= 768;
+  const panelWidth = isIPadLandscape ? Math.min(width - 64, 1200) : Math.min(width - (isTablet ? 64 : 24), 720);
+  const [landscapeTrackWidth, setLandscapeTrackWidth] = React.useState(480);
+  const trackWidth = isIPadLandscape ? landscapeTrackWidth : panelWidth - 36;
+  const timelineRef = React.useRef(null);
+  const scrollCommitted = React.useRef(false);
+  const previewDaysRef = React.useRef(0);
+  const [zoomTrackWidth, setZoomTrackWidth] = React.useState(80);
+  const zoomTrackWidthRef = React.useRef(zoomTrackWidth);
   const [location, setLocation] = React.useState(null);
   const [isLoadingLocation, setIsLoadingLocation] = React.useState(true);
-  const [currentDate, setCurrentDate] = React.useState(new Date());
   const [dayOffset, setDayOffset] = React.useState(0);
-  const [moonScale, setMoonScale] = React.useState(1.0);
-  const [showTelemetryHUD, setShowTelemetryHUD] = React.useState(true);
+  const [dragDays, setDragDays] = React.useState(0);
+  const [moonScale, setMoonScale] = React.useState(1);
+  const [showTimeline, setShowTimeline] = React.useState(true);
+  const timelineAnimation = React.useRef(new Animated.Value(1)).current;
   const [showOrbiter, setShowOrbiter] = React.useState(true);
+  const [clockTime, setClockTime] = React.useState(() => new Date());
+  const moonScaleRef = React.useRef(1);
+  const zoomStartRef = React.useRef(1);
+  const zoomPhaseRef = React.useRef('');
+  zoomTrackWidthRef.current = zoomTrackWidth;
+  moonScaleRef.current = moonScale;
 
-  // Silky smooth native driver animated value (1 = HUD visible, 0 = HUD hidden)
-  const hudAnim = React.useRef(new Animated.Value(1)).current;
-
-  const toggleHUD = React.useCallback(
-    (show, source = 'button') => {
-      setShowTelemetryHUD(show);
-      trackHudVisibility({ visible: show, source });
-      Animated.spring(hudAnim, {
-        toValue: show ? 1 : 0,
-        damping: 22,
-        mass: 0.85,
-        stiffness: 140,
-        overshootClamping: true,
-        useNativeDriver: true,
-      }).start();
-    },
-    [hudAnim]
-  );
-
-  // Interpolations for fluid sliding
-  const hudTranslateY = hudAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [isTablet ? windowHeight : 360, 0],
-  });
-
-  const hudOpacity = hudAnim.interpolate({
-    inputRange: [0, 0.2, 1],
-    outputRange: [0, 0.9, 1],
-  });
-
-  const collapsedTranslateY = hudAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 90],
-  });
-
-  const collapsedOpacity = hudAnim.interpolate({
-    inputRange: [0, 0.6, 1],
-    outputRange: [1, 0.2, 0],
-  });
-
-  // Swipe Down on HUD handle to hide HUD
-  const hidePanResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 6,
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 15 || gestureState.vy > 0.3) {
-          toggleHUD(false, 'swipe');
-        }
-      },
-    })
-  ).current;
-
-  // Swipe Up on collapsed handle to show HUD
-  const showPanResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy < -6,
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy < -15 || gestureState.vy < -0.3) {
-          toggleHUD(true, 'swipe');
-        }
-      },
-    })
-  ).current;
-
-  // Fetch GPS Coordinates on mount
-  const fetchLocation = React.useCallback(async () => {
-    setIsLoadingLocation(true);
-    try {
-      const loc = await getCurrentGPSLocation();
-      setLocation(loc);
-    } catch (err) {
-      console.warn('GPS retrieval error:', err);
-    } finally {
-      setIsLoadingLocation(false);
-    }
+  React.useEffect(() => {
+    let active = true;
+    getCurrentGPSLocation().then((value) => {
+      if (active) setLocation(value);
+    }).catch((error) => console.warn('GPS retrieval error:', error)).finally(() => {
+      if (active) setIsLoadingLocation(false);
+    });
+    return () => { active = false; };
   }, []);
 
   React.useEffect(() => {
-    fetchLocation();
-  }, [fetchLocation]);
-
-  // Update clock every minute
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      if (dayOffset !== 0) {
-        now.setDate(now.getDate() + dayOffset);
-      }
-      setCurrentDate(now);
-    }, 60000);
+    const timer = setInterval(() => setClockTime(new Date()), 60000);
     return () => clearInterval(timer);
-  }, [dayOffset]);
+  }, []);
 
-  // Adjust date offset
-  const changeDateOffset = (delta, source, phaseName) => {
-    const newOffset = dayOffset + delta;
-    setDayOffset(newOffset);
-    const d = new Date();
-    d.setDate(d.getDate() + newOffset);
-    setCurrentDate(d);
-    trackDateOffsetChange({ delta, offset: newOffset, source, phaseName });
-  };
-
-  const resetToToday = (source, phaseName) => {
-    const previousOffset = dayOffset;
-    setDayOffset(0);
-    setCurrentDate(new Date());
-    trackDateOffsetChange({
-      delta: previousOffset === 0 ? 0 : -previousOffset,
-      offset: 0,
-      source,
-      phaseName,
-    });
-  };
-
-  // Adjust Moon size scale
-  const selectMoonSize = (scale, method, phaseName) => {
-    const nextScale = Math.max(0.6, Math.min(1.6, Number(scale.toFixed(2))));
-    setMoonScale(nextScale);
-    trackMoonSizeSelection({ scale: nextScale, method, phaseName });
-  };
-
-  const adjustMoonSize = (delta, phaseName) => {
-    selectMoonSize(moonScale + delta, 'step', phaseName);
-  };
-
-  const toggleOrbiter = (phaseName) => {
-    const nextValue = !showOrbiter;
-    setShowOrbiter(nextValue);
-    trackOrbiterVisibility({ enabled: nextValue, phaseName });
-  };
-
-  // Compute astronomical lunar state
+  const displayedOffset = dayOffset + dragDays;
+  const displayedDate = React.useMemo(() => {
+    const date = new Date(clockTime);
+    date.setDate(date.getDate() + displayedOffset);
+    return date;
+  }, [clockTime, displayedOffset]);
   const lat = location?.latitude ?? 0;
   const lon = location?.longitude ?? 0;
-  const astronomy = React.useMemo(() => {
-    return getMoonAstronomy(currentDate, lat, lon);
-  }, [currentDate, lat, lon]);
+  const astronomy = React.useMemo(() => getMoonAstronomy(displayedDate, lat, lon), [displayedDate, lat, lon]);
+  const isMoonEclipse = React.useMemo(() => isLunarEclipse(displayedDate, astronomy), [displayedDate, astronomy]);
+  const isMidAutumn = React.useMemo(() => !isMoonEclipse && isMidAutumnFullMoon(displayedDate, astronomy), [displayedDate, astronomy, isMoonEclipse]);
 
-  // Automatic astronomical calendar detection for Lunar Eclipse and Mid-Autumn Full Moon
-  const isMoonEclipse = React.useMemo(() => {
-    return isLunarEclipse(currentDate, astronomy);
-  }, [currentDate, astronomy]);
-
-  const isMidAutumn = React.useMemo(() => {
-    return !isMoonEclipse && isMidAutumnFullMoon(currentDate, astronomy);
-  }, [currentDate, astronomy, isMoonEclipse]);
-
-  // Sync dynamic app icon with current real-world lunar phase / astronomical event
   React.useEffect(() => {
     const today = new Date();
     const todayAstro = getMoonAstronomy(today, lat, lon);
-    const todayIsEclipse = isLunarEclipse(today, todayAstro);
-    const todayIsMidAutumn = isMidAutumnFullMoon(today, todayAstro);
-
-    if (todayIsEclipse) {
-      syncAppIconWithPhase('Eclipse', true);
-    } else if (todayIsMidAutumn) {
-      syncAppIconWithPhase('Full Moon', false);
-    } else if (todayAstro?.phaseName) {
-      syncAppIconWithPhase(todayAstro.phaseName, false);
-    }
+    if (isLunarEclipse(today, todayAstro)) syncAppIconWithPhase('Eclipse', true);
+    else if (isMidAutumnFullMoon(today, todayAstro)) syncAppIconWithPhase('Full Moon', false);
+    else if (todayAstro?.phaseName) syncAppIconWithPhase(todayAstro.phaseName, false);
   }, [lat, lon]);
 
-  const formatCoord = (val, isLat) => {
-    if (val == null) return '--';
-    const dir = isLat ? (val >= 0 ? 'N' : 'S') : val >= 0 ? 'E' : 'W';
-    return `${Math.abs(val).toFixed(2)}° ${dir}`;
+  const setOffset = (offset, source) => {
+    const delta = offset - dayOffset;
+    if (delta === 0 && source !== 'today') return;
+    setDayOffset(offset);
+    trackDateOffsetChange({ delta, offset, source, phaseName: astronomy.phaseName });
   };
-
-  // Infinite horizontal scroll configuration (5 sets: Set 2 is the center set)
-  const cardStep = cardWidth + 12;
-  const cycleWidth = 4 * cardStep;
-  const initialScrollX = 2 * cycleWidth;
-  const scrollViewRef = React.useRef(null);
-  const isAdjustingScroll = React.useRef(false);
-  const hasInitializedScroll = React.useRef(false);
-
-  const handleScrollLayout = React.useCallback(() => {
-    if (!hasInitializedScroll.current) {
-      hasInitializedScroll.current = true;
-      scrollViewRef.current?.scrollTo({
-        x: initialScrollX,
-        animated: false,
-      });
+  const centerTimeline = () => timelineRef.current?.scrollTo({ x: TIMELINE_RADIUS * DAY_WIDTH, animated: false });
+  const previewTimeline = (event) => {
+    if (scrollCommitted.current) return;
+    const days = Math.max(-TIMELINE_RADIUS, Math.min(TIMELINE_RADIUS,
+      Math.round(event.nativeEvent.contentOffset.x / DAY_WIDTH) - TIMELINE_RADIUS));
+    if (days !== previewDaysRef.current) {
+      previewDaysRef.current = days;
+      setDragDays(days);
     }
-  }, [initialScrollX]);
+  };
+  const commitTimeline = (event) => {
+    if (scrollCommitted.current) return;
+    scrollCommitted.current = true;
+    const days = Math.max(-TIMELINE_RADIUS, Math.min(TIMELINE_RADIUS,
+      Math.round(event.nativeEvent.contentOffset.x / DAY_WIDTH) - TIMELINE_RADIUS));
+    centerTimeline();
+    previewDaysRef.current = 0;
+    setDragDays(0);
+    if (days !== 0) setOffset(dayOffset + days, 'timeline_drag');
+  };
+  const selectTimelineDay = (days) => {
+    scrollCommitted.current = true;
+    centerTimeline();
+    previewDaysRef.current = 0;
+    setDragDays(0);
+    if (days !== 0) setOffset(dayOffset + days, 'timeline_tap');
+  };
+  const selectTimelineDayRef = React.useRef(selectTimelineDay);
+  selectTimelineDayRef.current = selectTimelineDay;
 
-  const handleMomentumScrollEnd = React.useCallback(
-    (e) => {
-      if (isAdjustingScroll.current) {
-        isAdjustingScroll.current = false;
-        return;
-      }
-      const offsetX = e.nativeEvent.contentOffset.x;
-      const centerOffset = 2 * cycleWidth;
-      const diff = offsetX - centerOffset;
-      const cyclesAway = Math.round(diff / cycleWidth);
-
-      if (cyclesAway !== 0) {
-        const normalizedX = offsetX - cyclesAway * cycleWidth;
-        isAdjustingScroll.current = true;
-        scrollViewRef.current?.scrollTo({
-          x: normalizedX,
-          animated: false,
-        });
+  const zoomResponder = React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { zoomStartRef.current = moonScaleRef.current; },
+    onPanResponderMove: (_, gesture) => {
+      const travelWidth = Math.max(1, zoomTrackWidthRef.current - ZOOM_THUMB_SIZE);
+      const scale = Math.max(0.6, Math.min(1.6, zoomStartRef.current + gesture.dx / travelWidth));
+      const nextScale = Number(scale.toFixed(2));
+      moonScaleRef.current = nextScale;
+      setMoonScale(nextScale);
+    },
+    onPanResponderRelease: () => {
+      if (moonScaleRef.current !== zoomStartRef.current) {
+        trackMoonSizeSelection({ scale: moonScaleRef.current, method: 'drag', phaseName: zoomPhaseRef.current });
       }
     },
-    [cycleWidth]
-  );
+  }), []);
 
-  const handleScrollEndDrag = React.useCallback(
-    (e) => {
-      const velocity = Math.abs(e.nativeEvent.velocity?.x || 0);
-      if (velocity < 0.1) {
-        handleMomentumScrollEnd(e);
-      }
-    },
-    [handleMomentumScrollEnd]
-  );
+  const selectMoonSize = (scale, method) => {
+    const nextScale = Math.max(0.6, Math.min(1.6, Number(scale.toFixed(2))));
+    setMoonScale(nextScale);
+    trackMoonSizeSelection({ scale: nextScale, method, phaseName: astronomy.phaseName });
+  };
+  const toggleOrbiter = (enabled) => {
+    setShowOrbiter(enabled);
+    trackOrbiterVisibility({ enabled, phaseName: astronomy.phaseName });
+  };
+  const toggleTimeline = (visible) => {
+    if (visible === showTimeline) return;
+    setShowTimeline(visible);
+    trackHudVisibility({ visible, source: 'button' });
+    timelineAnimation.stopAnimation();
+    Animated.timing(timelineAnimation, {
+      toValue: visible ? 1 : 0,
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+  const formatCoord = (value, isLat) => `${Math.abs(value).toFixed(2)}° ${isLat ? (value >= 0 ? 'N' : 'S') : (value >= 0 ? 'E' : 'W')}`;
 
-  const renderCardContent = React.useCallback(
-    (index) => {
-      switch (index) {
-        case 0:
-          return (
-            <>
-              <View style={styles.cardHeader}>
-                <Text style={styles.phaseEmoji}>
-                  {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
-                </Text>
-                <View style={styles.phaseTitleContainer}>
-                  <View style={styles.phaseTitleRow}>
-                    <Text
-                      style={[
-                        styles.phaseName,
-                        isMoonEclipse && styles.phaseNameEclipse,
-                        isMidAutumn && styles.phaseNameMidAutumn,
-                      ]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {isMoonEclipse
-                        ? 'Total Eclipse'
-                        : isMidAutumn
-                        ? 'Mid-Autumn'
-                        : astronomy.phaseName}
-                    </Text>
-                    <View
-                      style={[
-                        styles.fullPercentBadge,
-                        isMoonEclipse && styles.fullPercentBadgeEclipse,
-                        isMidAutumn && styles.fullPercentBadgeMidAutumn,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.fullPercentBadgeText,
-                          isMoonEclipse && styles.fullPercentBadgeTextEclipse,
-                          isMidAutumn && styles.fullPercentBadgeTextMidAutumn,
-                        ]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit={!isTablet}
-                        minimumFontScale={0.8}
-                      >
-                        {isMoonEclipse
-                          ? 'BLOOD MOON'
-                          : isMidAutumn
-                          ? '100% RADIANT'
-                          : `${astronomy.illuminationPercent}% FULL`}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.phaseSub} numberOfLines={1} ellipsizeMode="tail">
-                    {isMoonEclipse
-                      ? 'Lunar Eclipse • Earth Umbra'
-                      : isMidAutumn
-                      ? 'Autumn Festival • Full Moon'
-                      : `${astronomy.isWaxing ? 'Waxing' : 'Waning'} • Cycle day ${astronomy.moonAgeDays}`}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Progress bar of lunar cycle to Full Moon */}
-              <View style={styles.progressBarSection}>
-                <View style={styles.progressLabelsRow}>
-                  <Text style={styles.progressLabel}>0% (NEW)</Text>
-                  <Text
-                    style={[
-                      styles.progressLabelHighlight,
-                      isMoonEclipse && styles.progressLabelHighlightEclipse,
-                      isMidAutumn && styles.progressLabelHighlightMidAutumn,
-                    ]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {isMoonEclipse
-                      ? 'UMBRA TOTALITY'
-                      : isMidAutumn
-                      ? 'HARVEST FULL MOON'
-                      : `${astronomy.illuminationPercent}% FULL MOON`}
-                  </Text>
-                  <Text style={styles.progressLabel}>100% (FULL)</Text>
-                </View>
-                <View style={styles.progressBarTrack}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      isMoonEclipse && styles.progressBarFillEclipse,
-                      isMidAutumn && styles.progressBarFillMidAutumn,
-                      {
-                        width: `${
-                          isMoonEclipse || isMidAutumn
-                            ? 100
-                            : Math.min(100, Math.max(2, astronomy.illuminationPercent))
-                        }%`,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-
-              {/* Astronomical Metrics Grid */}
-              <View style={styles.metricsGrid}>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">MOON AGE</Text>
-                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>{astronomy.moonAgeDays} d</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">DISTANCE</Text>
-                  <Text style={styles.metricValue} numberOfLines={2}>
-                    {`${astronomy.moonDistanceKm.toLocaleString()}\nkm`}
-                  </Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">ELONGATION</Text>
-                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>{astronomy.elongationDeg}°</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">HEMISPHERE</Text>
-                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>
-                    {location != null
-                      ? astronomy.isSouthernHemisphere
-                        ? 'Southern'
-                        : 'Northern'
-                      : 'Equatorial'}
-                  </Text>
-                </View>
-              </View>
-            </>
-          );
-        case 1:
-          return (
-            <>
-              <Text style={styles.controlsTitle} numberOfLines={1}>MOON SIZE ADJUSTMENT</Text>
-              <View style={styles.sizeControlRow}>
-                <TouchableOpacity
-                  style={styles.sizeBtn}
-                  onPress={() => adjustMoonSize(-0.1, astronomy.phaseName)}
-                >
-                  <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>－ Shrink</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.sizeCenterBtn}
-                  onPress={() => selectMoonSize(1.0, 'reset', astronomy.phaseName)}
-                >
-                  <Text style={styles.sizeCenterVal} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.7}>{Math.round(moonScale * 100)}%</Text>
-                  <Text style={styles.sizeCenterSub} numberOfLines={1}>Tap to Reset</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.sizeBtn}
-                  onPress={() => adjustMoonSize(0.1, astronomy.phaseName)}
-                >
-                  <Text style={styles.sizeBtnText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>＋ Enlarge</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Quick Presets */}
-              <View style={styles.presetsRow}>
-                {[
-                  { label: 'Small', scale: 0.75 },
-                  { label: 'Default', scale: 1.0 },
-                  { label: 'Large', scale: 1.25 },
-                  { label: 'Max', scale: 1.5 },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.label}
-                    style={[
-                      styles.presetPill,
-                      Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillActive,
-                    ]}
-                    onPress={() => selectMoonSize(item.scale, 'preset', astronomy.phaseName)}
-                  >
-                    <Text
-                      style={[
-                        styles.presetPillText,
-                        Math.abs(moonScale - item.scale) < 0.05 && styles.presetPillTextActive,
-                      ]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit={!isTablet}
-                      minimumFontScale={0.8}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          );
-        case 2:
-          return (
-            <>
-              <View style={styles.cardHeader}>
-                <Text style={styles.orbiterEmoji}>🛰️</Text>
-                <View style={styles.phaseTitleContainer}>
-                  <Text style={styles.orbiterTitle} numberOfLines={1} ellipsizeMode="tail">NASA LRO</Text>
-                  <Text style={styles.orbiterSub} numberOfLines={1} ellipsizeMode="tail">Polar orbit</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.activeBadge, !showOrbiter && styles.activeBadgeOff]}
-                  onPress={() => toggleOrbiter(astronomy.phaseName)}
-                >
-                  <Text style={styles.activeBadgeText} numberOfLines={1}>
-                    {showOrbiter ? 'ORBITER: ON' : 'ORBITER: OFF'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.orbiterDesc} numberOfLines={isTablet ? 4 : 2} ellipsizeMode="tail">
-                Circulating from behind the Moon across the front illuminated face.
-                Dynamically scales in sync with the Moon ({Math.round(moonScale * 100)}%).
-              </Text>
-
-              <View style={styles.orbiterMetricsRow}>
-                <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ALTITUDE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>~50 km</Text>
-                </View>
-                <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ORBIT</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={2}>{'Behind\n→ Front'}</Text>
-                </View>
-                <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">SPEED</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>1.6 km/s</Text>
-                </View>
-                <View style={styles.orbiterMetric}>
-                  <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">LRO SCALE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>{Math.round(moonScale * 100)}%</Text>
-                </View>
-              </View>
-            </>
-          );
-        case 3:
-          return (
-            <>
-              <View>
-                <Text style={styles.controlsTitle} numberOfLines={1}>PHASE TIME TRAVEL</Text>
-                <Text style={styles.timeTravelDesc} numberOfLines={2} ellipsizeMode="tail">
-                  Preview how the Moon's phase and lighting evolve day by day.
-                </Text>
-              </View>
-
-              <View style={styles.dateControlRow}>
-                <TouchableOpacity
-                  style={styles.dateStepBtn}
-                  onPress={() => changeDateOffset(-1, 'step_button', astronomy.phaseName)}
-                >
-                  <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>-1 Day</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.dateCenterBtn}
-                  onPress={() => resetToToday('center_button', astronomy.phaseName)}
-                >
-                  <Text style={styles.dateCenterText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>
-                    {dayOffset === 0
-                      ? 'Today (Live)'
-                      : `${dayOffset > 0 ? '+' : ''}${dayOffset}d`}
-                  </Text>
-                  <Text style={styles.dateSubText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>
-                    {currentDate.toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.dateStepBtn}
-                  onPress={() => changeDateOffset(1, 'step_button', astronomy.phaseName)}
-                >
-                  <Text style={styles.dateStepText} numberOfLines={1} adjustsFontSizeToFit={!isTablet} minimumFontScale={0.8}>+1 Day</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Quick Day Jumps fitting the card width */}
-              <View style={styles.presetsRow}>
-                {[
-                  { label: '-7d', delta: -7 },
-                  { label: '-1d', delta: -1 },
-                  { label: 'Today', delta: 0, isReset: true },
-                  { label: '+1d', delta: 1 },
-                  { label: '+7d', delta: 7 },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.label}
-                    style={[
-                      styles.presetPill,
-                      item.isReset && dayOffset === 0 && styles.presetPillActive,
-                    ]}
-                    onPress={() =>
-                      item.isReset
-                        ? resetToToday('preset', astronomy.phaseName)
-                        : changeDateOffset(item.delta, 'preset', astronomy.phaseName)
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.presetPillText,
-                        item.isReset && dayOffset === 0 && styles.presetPillTextActive,
-                      ]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit={!isTablet}
-                      minimumFontScale={0.8}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          );
-        default:
-          return null;
-      }
-    },
-    [
-      astronomy,
-      moonScale,
-      showOrbiter,
-      dayOffset,
-      currentDate,
-      adjustMoonSize,
-      selectMoonSize,
-      toggleOrbiter,
-      isMoonEclipse,
-      isMidAutumn,
-      location,
-      isTablet,
-      styles,
-    ]
-  );
+  const phaseName = isMoonEclipse ? 'Total Lunar Eclipse' : isMidAutumn ? 'Mid-Autumn Full Moon' : astronomy.phaseName;
+  zoomPhaseRef.current = astronomy.phaseName;
+  const phaseEmoji = isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji;
+  const accent = isMoonEclipse ? '#e57855' : isMidAutumn ? '#f6d27e' : '#e8d19a';
+  const hemisphere = location ? (astronomy.isSouthernHemisphere ? 'Southern' : 'Northern') : 'Equatorial';
+  const timelineDates = React.useMemo(() => TIMELINE_DAYS.map((delta) => {
+    const date = new Date(clockTime);
+    date.setDate(date.getDate() + dayOffset + delta);
+    const monthStart = date.getDate() === 1;
+    return {
+      day: date.getDate(),
+      monthStart,
+      shortLabel: date.toLocaleDateString(undefined, { [monthStart ? 'month' : 'weekday']: 'short' }).toUpperCase(),
+      fullLabel: date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+    };
+  }), [clockTime, dayOffset]);
+  const timelineCells = React.useMemo(() => timelineDates.map((date, index) => {
+    const days = TIMELINE_DAYS[index];
+    return <TouchableOpacity key={days} style={s.dayCell} onPress={() => selectTimelineDayRef.current(days)} accessibilityRole="button" accessibilityLabel={date.fullLabel}>
+      <Text style={[s.dayWeekday, date.monthStart && s.dayMonth]}>{date.shortLabel}</Text>
+      <Text style={s.dayNumber}>{date.day}</Text>
+      <View style={[s.dayTick, date.monthStart && s.monthTick]} />
+    </TouchableOpacity>;
+  }), [timelineDates]);
 
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       <StatusBar style="light" />
-      <ImageBackground
-        source={require('./assets/stars.jpeg')}
-        resizeMode="cover"
-        style={styles.stars}
-      >
-        {/* 3D WebGL Moon with adjustable size, behind-to-front NASA LRO orbiter, and HUD centering */}
-        <Moon
-          lightPosition={astronomy.lightPosition}
-          moonScale={moonScale}
-          isMoonEclipse={isMoonEclipse}
-          isMidAutumn={isMidAutumn}
-          showOrbiter={showOrbiter}
-          hasHUD={showTelemetryHUD}
-          dayOffset={dayOffset}
-        />
+      <ImageBackground source={require('./assets/stars.jpeg')} resizeMode="cover" style={s.stars}>
+        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} />
 
-        {/* Top Header & GPS Status Bar with Moon percentage */}
-        <View style={[styles.topBar, isTablet && styles.topBarTablet]} pointerEvents="box-none">
-          <View style={[styles.headerContainer, isTablet && styles.headerContainerTablet]} pointerEvents="auto">
-            <Text style={[styles.brandTitle, isTablet && styles.brandTitleTablet]}>
-              ASTRA • LUNAR OBSERVER
-            </Text>
-            <View style={[styles.statusRow, isTablet && styles.statusRowTablet]}>
-              {location != null && (
-                <View style={styles.gpsRow}>
-                  <Text style={styles.gpsDot}>●</Text>
-                  <Text style={styles.gpsText} numberOfLines={1}>
-                    {`${formatCoord(location.latitude, true)}, ${formatCoord(
-                      location.longitude,
-                      false
-                    )} ${location.city ? `(${location.city})` : ''}`}
-                  </Text>
-                </View>
-              )}
-              <View
-                style={[
-                  styles.topPhaseBadge,
-                  isMoonEclipse && styles.topPhaseBadgeEclipse,
-                  isMidAutumn && styles.topPhaseBadgeMidAutumn,
-                ]}
-              >
-                <Text style={styles.topPhaseEmoji}>
-                  {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
-                </Text>
-                <Text
-                  style={[
-                    styles.topPhasePercent,
-                    isMoonEclipse && styles.topPhasePercentEclipse,
-                    isMidAutumn && styles.topPhasePercentMidAutumn,
-                  ]}
-                >
-                  {isMoonEclipse
-                    ? 'Total Eclipse'
-                    : isMidAutumn
-                    ? 'Mid-Autumn'
-                    : `${astronomy.illuminationPercent}% Full`}
-                </Text>
-              </View>
+        <View style={[s.header, isTablet && s.headerTablet]}>
+          <View style={s.headerCopy} pointerEvents="none">
+            <Text style={s.brand}>ASTRA <Text style={s.brandSub}>/ LUNAR OBSERVER</Text></Text>
+            {location && <Text style={s.location} numberOfLines={1}><Text style={s.locationDot}>●  </Text>{`${formatCoord(location.latitude, true)}, ${formatCoord(location.longitude, false)}${location.city ? ` (${location.city})` : ''}`}</Text>}
+            {isLoadingLocation && <Text style={s.location}>Locating…</Text>}
+          </View>
+          <View style={s.satelliteControl}><Text style={s.satelliteIcon}>🛰</Text><Switch value={showOrbiter} onValueChange={toggleOrbiter} trackColor={{ false: '#3b4c55', true: '#5ac8ba' }} thumbColor="#ffffff" ios_backgroundColor="#3b4c55" style={s.satelliteSwitch} accessibilityLabel="Show NASA LRO satellite" /></View>
+        </View>
+
+        <View style={[s.floatingControls, isIPhone && s.floatingControlsIPhone, isTablet && s.floatingControlsTablet]}>
+          <View style={s.zoomControl}>
+            <View style={s.zoomTrack} onLayout={(event) => { const next = event.nativeEvent.layout.width; if (next !== zoomTrackWidthRef.current) { zoomTrackWidthRef.current = next; setZoomTrackWidth(next); } }}>
+              <View style={s.zoomLine} />
+              <View style={[s.zoomFill, { width: `${(moonScale - 0.6) * 100}%` }]} />
+              <View style={[s.zoomThumb, { left: (moonScale - 0.6) * (zoomTrackWidth - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Moon zoom" accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)} percent` }} accessibilityActions={[{ name: 'increment', label: 'Zoom in' }, { name: 'decrement', label: 'Zoom out' }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
             </View>
           </View>
         </View>
 
-        {/* Telemetry HUD Overlay (Animated: Full horizontal deck on iPad, horizontal scroll on phone) */}
         <Animated.View
-          style={[
-            styles.hudOverlay,
-            isTablet && styles.hudOverlayTablet,
-            {
-              opacity: hudOpacity,
-              transform: [{ translateY: hudTranslateY }],
-            },
-          ]}
-          pointerEvents={showTelemetryHUD ? 'box-none' : 'none'}
+          style={[s.timelinePanel, isIPhone && s.timelinePanelIPhone, isIPadLandscape && s.timelinePanelLandscape, { width: panelWidth }, {
+            opacity: timelineAnimation,
+            transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [220, 0] }) }],
+          }]}
+          pointerEvents={showTimeline ? 'auto' : 'none'}
+          accessibilityElementsHidden={!showTimeline}
+          importantForAccessibility={showTimeline ? 'auto' : 'no-hide-descendants'}
         >
-          {/* Swipe Down Handle Indicator */}
-          <View style={styles.swipeHandleArea} {...hidePanResponder.panHandlers}>
-            <TouchableOpacity
-              onPress={() => toggleHUD(false, 'button')}
-              activeOpacity={0.7}
-              style={styles.swipeHandlePill}
+            <View style={[s.timelineHeader, isIPadLandscape && s.timelineHeaderLandscape]}>
+              <View style={[s.dateCopy, isIPadLandscape && s.dateCopyLandscape]}>
+                <Text style={s.timelineEyebrow}>LUNAR TIMELINE <Text style={s.dragHint}>· DRAG THE MOON</Text></Text>
+                <Text style={s.dateText} numberOfLines={1}>{displayedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                <Text style={[s.phaseSummaryName, { color: accent }]} numberOfLines={1}>{phaseName} <Text style={s.phaseSummaryPercent}>· {astronomy.illuminationPercent}% lit</Text></Text>
+              </View>
+              <View style={s.timelineActions}>
+                {displayedOffset !== 0 && <TouchableOpacity onPress={() => { scrollCommitted.current = true; centerTimeline(); previewDaysRef.current = 0; setDragDays(0); setOffset(0, 'today'); }} style={s.todayButton} accessibilityRole="button" accessibilityLabel="Return to today"><Text style={s.todayText}>TODAY</Text></TouchableOpacity>}
+                <TouchableOpacity onPress={() => toggleTimeline(false)} style={s.hideButton} accessibilityRole="button" accessibilityLabel="Collapse lunar timeline"><Text style={[s.collapsedArrow, s.downArrow]}>⌃</Text></TouchableOpacity>
+              </View>
+            </View>
+            <View
+              style={[s.track, isIPadLandscape && s.trackLandscape]}
+              onLayout={isIPadLandscape ? (event) => {
+                const measuredWidth = event.nativeEvent.layout.width;
+                setLandscapeTrackWidth((previous) => previous === measuredWidth ? previous : measuredWidth);
+              } : undefined}
             >
-              <Text style={styles.swipeArrowDown}>▼</Text>
-              <Text style={styles.swipeHandleText}>Swipe down to hide</Text>
-            </TouchableOpacity>
-          </View>
-
-          {isTablet ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator
-              style={{ flexGrow: 0, alignSelf: 'center', width: tabletDeckWidth, maxHeight: windowHeight * 0.72 }}
-              contentContainerStyle={[styles.tabletCardsDeck, { width: Math.max(tabletDeckWidth, 4 * tabletCardWidth + 36) }]}
-              pointerEvents="auto"
-            >
-              {[0, 1, 2, 3].map((cardIdx) => (
-                <View
-                  key={`tablet-card-${cardIdx}`}
-                  style={[styles.tabletCard, { width: tabletCardWidth }]}
-                >
-                  {renderCardContent(cardIdx)}
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <ScrollView
-              ref={scrollViewRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={cardStep}
-              decelerationRate="fast"
-              snapToAlignment="start"
-              contentContainerStyle={styles.horizontalScrollContent}
-              pointerEvents="auto"
-              contentOffset={{ x: initialScrollX, y: 0 }}
-              onLayout={handleScrollLayout}
-              onMomentumScrollEnd={handleMomentumScrollEnd}
-              onScrollEndDrag={handleScrollEndDrag}
-            >
-              {[0, 1, 2, 3, 4].map((setIdx) => (
-                <React.Fragment key={`set-${setIdx}`}>
-                  {[0, 1, 2, 3].map((cardIdx) => (
-                    <View
-                      key={`card-${setIdx}-${cardIdx}`}
-                      style={[styles.card, { width: cardWidth }]}
-                    >
-                      {renderCardContent(cardIdx)}
-                    </View>
-                  ))}
-                </React.Fragment>
-              ))}
-            </ScrollView>
-          )}
+              <View pointerEvents="none" style={s.trackLine} />
+              <ScrollView
+                ref={timelineRef}
+                style={s.rulerScroll}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={DAY_WIDTH}
+                contentContainerStyle={{ paddingHorizontal: (trackWidth - DAY_WIDTH) / 2 }}
+                contentOffset={{ x: TIMELINE_RADIUS * DAY_WIDTH, y: 0 }}
+                onLayout={centerTimeline}
+                onScrollBeginDrag={() => { scrollCommitted.current = false; }}
+                onScroll={previewTimeline}
+                scrollEventThrottle={16}
+                onMomentumScrollEnd={commitTimeline}
+                onScrollEndDrag={(event) => { if (Math.abs(event.nativeEvent.velocity?.x || 0) < 0.05) commitTimeline(event); }}
+                accessibilityLabel="Lunar date ruler. Swipe to travel through dates"
+              >
+                {timelineCells}
+              </ScrollView>
+              <View pointerEvents="none" style={[s.thumb, { left: (trackWidth - THUMB_SIZE) / 2, borderColor: accent }]}><Text style={s.thumbEmoji}>{phaseEmoji}</Text></View>
+            </View>
+            <View style={[s.timelineDetails, isIPadLandscape && s.timelineDetailsLandscape]}><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>AGE <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>DISTANCE <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString()} km</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>ANGLE <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>VIEW <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
         </Animated.View>
-
-        {/* Floating Swipe Up Handle when HUD is hidden (Animated) */}
         <Animated.View
-          style={[
-            styles.collapsedHandleArea,
-            {
-              opacity: collapsedOpacity,
-              transform: [{ translateY: collapsedTranslateY }],
-            },
-          ]}
-          pointerEvents={showTelemetryHUD ? 'none' : 'box-none'}
-          {...showPanResponder.panHandlers}
+          style={[s.collapsedOverlay, { opacity: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }] }]}
+          pointerEvents={showTimeline ? 'none' : 'box-none'}
+          accessibilityElementsHidden={showTimeline}
+          importantForAccessibility={showTimeline ? 'no-hide-descendants' : 'auto'}
         >
-          <TouchableOpacity
-            onPress={() => toggleHUD(true, 'button')}
-            activeOpacity={0.7}
-            style={styles.collapsedHandlePill}
-          >
-            <Text style={styles.swipeArrowUp}>▲</Text>
-            <Text style={styles.collapsedMoonEmoji}>
-              {isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji}
-            </Text>
-            <Text style={styles.collapsedHandleText}>
-              {isMoonEclipse
-                ? 'Total Lunar Eclipse • Blood Moon'
-                : isMidAutumn
-                ? 'Mid-Autumn Full Moon • 100% Radiant'
-                : `${astronomy.phaseName} • ${astronomy.illuminationPercent}% Full`}
-            </Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={[s.collapsedTimeline, isIPad && s.collapsedTimelineIPad]} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`Expand lunar timeline. ${phaseName}, ${astronomy.illuminationPercent} percent illuminated`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
         </Animated.View>
       </ImageBackground>
     </View>
   );
 }
 
-const baseStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingTop: Platform.OS === 'ios' ? 44 : 20,
-  },
-  stars: {
-    flex: 1,
-    width: '100%',
-  },
-  topBar: {
-    position: 'absolute',
-    top: Platform.OS === 'web' ? 16 : 10,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    zIndex: 10,
-  },
-  topBarTablet: {
-    top: Platform.OS === 'ios' ? 24 : 16,
-    left: 28,
-    right: 28,
-  },
-  headerContainer: {
-    flexShrink: 1,
-    marginRight: 12,
-  },
-  headerContainerTablet: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginRight: 0,
-  },
-  brandTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#00d2d3',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(0, 210, 211, 0.6)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
-  },
-  brandTitleTablet: {
-    fontSize: 16,
-    letterSpacing: 2.5,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 8,
-  },
-  statusRowTablet: {
-    marginTop: 0,
-  },
-  hudOverlayTablet: {
-    bottom: 24,
-    paddingHorizontal: 16,
-  },
-  tabletCardsDeck: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-    gap: 12,
-  },
-  tabletCard: {
-    flexGrow: 0,
-    flexShrink: 0,
-    minWidth: 0,
-    minHeight: 168,
-    backgroundColor: 'rgba(9, 14, 26, 0.90)',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(113, 128, 150, 0.25)',
-    justifyContent: 'space-between',
-  },
-  gpsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(10, 15, 28, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 210, 211, 0.35)',
-  },
-  gpsDot: {
-    color: '#10ac84',
-    fontSize: 9,
-    marginRight: 6,
-  },
-  gpsText: {
-    color: '#dfe4ea',
-    fontSize: 12,
-    fontWeight: '500',
-    flexShrink: 1,
-  },
-  topPhaseBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(10, 15, 28, 0.85)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(241, 196, 15, 0.4)',
-    gap: 5,
-  },
-  topPhaseEmoji: {
-    fontSize: 12,
-  },
-  topPhasePercent: {
-    color: '#f1c40f',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  swipeHandleArea: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  swipeHandlePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(10, 15, 28, 0.88)',
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 210, 211, 0.35)',
-    gap: 6,
-  },
-  swipeArrowDown: {
-    color: '#00d2d3',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  swipeHandleText: {
-    color: '#dfe4ea',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-  },
-  collapsedHandleArea: {
-    position: 'absolute',
-    bottom: 24,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  collapsedHandlePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(10, 15, 28, 0.92)',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 210, 211, 0.5)',
-    gap: 8,
-    shadowColor: '#00d2d3',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  swipeArrowUp: {
-    color: '#00d2d3',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  collapsedMoonEmoji: {
-    fontSize: 13,
-  },
-  collapsedHandleText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-  },
-  hudOverlay: {
-    position: 'absolute',
-    bottom: 22,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  horizontalScrollContent: {
-    paddingHorizontal: 16,
-    gap: 12,
-    paddingBottom: 4,
-  },
-  card: {
-    backgroundColor: 'rgba(9, 14, 26, 0.88)',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(113, 128, 150, 0.25)',
-    justifyContent: 'space-between',
-    minHeight: 168,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  phaseEmoji: {
-    fontSize: 32,
-    marginRight: 10,
-    marginTop: 2,
-  },
-  phaseTitleContainer: {
-    flex: 1,
-    minWidth: 0,
-  },
-  phaseTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  phaseName: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    flexShrink: 1,
-  },
-  fullPercentBadge: {
-    backgroundColor: 'rgba(241, 196, 15, 0.18)',
-    borderWidth: 1,
-    borderColor: '#f1c40f',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  fullPercentBadgeText: {
-    color: '#f1c40f',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  phaseSub: {
-    color: '#a4b0be',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  progressBarSection: {
-    marginTop: 10,
-  },
-  progressLabelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  progressLabel: {
-    color: '#747d8c',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    flex: 1,
-  },
-  progressLabelHighlight: {
-    color: '#f1c40f',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    flex: 1.4,
-    textAlign: 'center',
-  },
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 2,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#00d2d3',
-    borderRadius: 2,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  metricItem: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-  },
-  metricLabel: {
-    color: '#747d8c',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  metricValue: {
-    color: '#f1f2f6',
-    fontSize: 13,
-    lineHeight: 15,
-    fontWeight: '600',
-    marginTop: 2,
-    minHeight: 30,
-    textAlign: 'center',
-  },
-  sizeControlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 10,
-    padding: 4,
-  },
-  sizeBtn: {
-    backgroundColor: 'rgba(0, 210, 211, 0.15)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 210, 211, 0.4)',
-  },
-  sizeBtnText: {
-    color: '#00d2d3',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sizeCenterBtn: {
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  sizeCenterVal: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  sizeCenterSub: {
-    color: '#a4b0be',
-    fontSize: 9,
-  },
-  presetsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
-  },
-  presetPill: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingVertical: 5,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  presetPillActive: {
-    backgroundColor: 'rgba(0, 210, 211, 0.22)',
-    borderColor: '#00d2d3',
-  },
-  presetPillText: {
-    color: '#a4b0be',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  presetPillTextActive: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  orbiterEmoji: {
-    fontSize: 26,
-    marginRight: 10,
-  },
-  orbiterTitle: {
-    color: '#f1c40f',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  orbiterSub: {
-    color: '#a4b0be',
-    fontSize: 11,
-  },
-  activeBadge: {
-    backgroundColor: 'rgba(16, 172, 132, 0.2)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#10ac84',
-  },
-  activeBadgeOff: {
-    backgroundColor: 'rgba(235, 77, 75, 0.2)',
-    borderColor: '#eb4d4b',
-  },
-  activeBadgeText: {
-    color: '#1dd1a1',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  orbiterDesc: {
-    color: '#ced6e0',
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 8,
-  },
-  orbiterMetricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  orbiterMetric: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-  },
-  orbiterMetricLabel: {
-    color: '#747d8c',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  orbiterMetricVal: {
-    color: '#dfe4ea',
-    fontSize: 13,
-    lineHeight: 15,
-    fontWeight: '600',
-    marginTop: 2,
-    minHeight: 30,
-    textAlign: 'center',
-  },
-  controlsTitle: {
-    color: '#747d8c',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  timeTravelDesc: {
-    color: '#a4b0be',
-    fontSize: 11,
-    marginBottom: 10,
-  },
-  dateControlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 10,
-    padding: 4,
-  },
-  dateStepBtn: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 6,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  dateStepText: {
-    color: '#f1f2f6',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  dateCenterBtn: {
-    flex: 1.35,
-    minWidth: 0,
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  dateCenterText: {
-    color: '#00d2d3',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  dateSubText: {
-    color: '#a4b0be',
-    fontSize: 10,
-  },
-  topPhaseBadgeEclipse: {
-    borderColor: 'rgba(217, 112, 78, 0.65)',
-    backgroundColor: 'rgba(42, 18, 14, 0.88)',
-  },
-  topPhasePercentEclipse: {
-    color: '#e57855',
-  },
-  topPhaseBadgeMidAutumn: {
-    borderColor: 'rgba(230, 190, 94, 0.70)',
-    backgroundColor: 'rgba(46, 38, 18, 0.88)',
-  },
-  topPhasePercentMidAutumn: {
-    color: '#f6d27e',
-  },
-  phaseNameEclipse: {
-    color: '#e57855',
-  },
-  phaseNameMidAutumn: {
-    color: '#f6d27e',
-  },
-  fullPercentBadgeEclipse: {
-    backgroundColor: 'rgba(217, 112, 78, 0.20)',
-    borderColor: '#d9704e',
-  },
-  fullPercentBadgeTextEclipse: {
-    color: '#e57855',
-  },
-  fullPercentBadgeMidAutumn: {
-    backgroundColor: 'rgba(246, 210, 126, 0.18)',
-    borderColor: '#e6be5e',
-  },
-  fullPercentBadgeTextMidAutumn: {
-    color: '#f6d27e',
-  },
-  progressLabelHighlightEclipse: {
-    color: '#e57855',
-  },
-  progressLabelHighlightMidAutumn: {
-    color: '#f6d27e',
-  },
-  progressBarFillEclipse: {
-    backgroundColor: '#d9704e',
-  },
-  progressBarFillMidAutumn: {
-    backgroundColor: '#f6d27e',
-  },
-});
-
-// Tablet text and controls stay readable while cards size to their content.
-const tabletStyles = StyleSheet.create({
-  phaseName: { fontSize: 16, lineHeight: 20, letterSpacing: 0 },
-  orbiterTitle: { fontSize: 16, lineHeight: 20, letterSpacing: 0 },
-  phaseSub: { fontSize: 12, lineHeight: 16 },
-  orbiterSub: { fontSize: 12, lineHeight: 16 },
-  orbiterDesc: { fontSize: 12, lineHeight: 18, marginTop: 6 },
-  timeTravelDesc: { fontSize: 12, lineHeight: 18 },
-  controlsTitle: { fontSize: 12, lineHeight: 16, letterSpacing: 0.6 },
-  fullPercentBadgeText: { fontSize: 10, lineHeight: 14 },
-  activeBadgeText: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
-  activeBadge: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 8 },
-  metricLabel: { fontSize: 8, lineHeight: 12, letterSpacing: 0 },
-  orbiterMetricLabel: { fontSize: 8, lineHeight: 12, letterSpacing: 0 },
-  metricValue: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },
-  orbiterMetricVal: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },
-  progressBarSection: { marginTop: 6 },
-  progressLabel: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
-  progressLabelHighlight: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
-  progressBarTrack: { marginTop: 4 },
-  sizeBtn: { flex: 1, minHeight: 36, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center' },
-  sizeBtnText: { fontSize: 12, lineHeight: 16 },
-  sizeCenterBtn: { flex: 1, minWidth: 0, paddingHorizontal: 4 },
-  sizeCenterVal: { fontSize: 16, lineHeight: 20, fontVariant: ['tabular-nums'] },
-  sizeCenterSub: { fontSize: 10, lineHeight: 14 },
-  presetPill: { minHeight: 32, justifyContent: 'center' },
-  presetPillText: { fontSize: 12, lineHeight: 16 },
-  dateStepBtn: { flex: 1, minHeight: 36, paddingHorizontal: 4, justifyContent: 'center' },
-  dateStepText: { fontSize: 12, lineHeight: 16 },
-  dateCenterBtn: { flex: 2, paddingHorizontal: 4 },
-  dateCenterText: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },
-  dateSubText: { fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000', paddingTop: Platform.OS === 'ios' ? 44 : 20 },
+  stars: { flex: 1, width: '100%' },
+  header: { position: 'absolute', top: 16, left: 20, right: 16, zIndex: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  headerTablet: { top: 26, left: 32 },
+  headerCopy: { flex: 1, minWidth: 0 },
+  brand: { color: '#e5f4f4', fontSize: 14, fontWeight: '800', letterSpacing: 2 },
+  brandSub: { color: '#6d9c9f', fontWeight: '500', letterSpacing: 1.2 },
+  location: { color: '#a7b9bb', fontSize: 11, marginTop: 7 },
+  locationDot: { color: '#4ec7a3' },
+  floatingControls: { position: 'absolute', top: 80, right: 16, zIndex: 11, alignItems: 'flex-end' },
+  floatingControlsIPhone: { top: 64 },
+  floatingControlsTablet: { top: 78, right: 16 },
+  zoomControl: { width: 102, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
+  zoomTrack: { height: 22, justifyContent: 'center' },
+  zoomLine: { height: 3, borderRadius: 2, backgroundColor: '#3b5860' },
+  zoomFill: { position: 'absolute', left: 0, height: 3, borderRadius: 2, backgroundColor: '#73cec3' },
+  zoomThumb: { position: 'absolute', width: ZOOM_THUMB_SIZE, height: ZOOM_THUMB_SIZE, top: 2, borderRadius: 9, backgroundColor: '#e5f4ed', borderWidth: 2, borderColor: '#83d3c7' },
+  satelliteControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: 83, height: 30, paddingLeft: 7, paddingRight: 0, borderRadius: 15, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
+  satelliteIcon: { color: '#e2eeed', fontSize: 14 },
+  satelliteSwitch: { transform: [{ scaleX: 0.62 }, { scaleY: 0.62 }], marginRight: -8 },
+  timelinePanel: { position: 'absolute', alignSelf: 'center', bottom: 14, zIndex: 10, paddingTop: 11, paddingBottom: 10, borderRadius: 20, backgroundColor: 'rgba(7, 15, 24, 0.90)', borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.22)' },
+  timelinePanelIPhone: { borderBottomLeftRadius: 38, borderBottomRightRadius: 38 },
+  timelinePanelLandscape: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 9, paddingBottom: 9 },
+  timelineHeader: { paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timelineHeaderLandscape: { width: 240, paddingHorizontal: 0, flexDirection: 'column', alignItems: 'stretch', gap: 5 },
+  dateCopy: { flex: 1, minWidth: 0 },
+  dateCopyLandscape: { flex: 0, width: '100%' },
+  timelineActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timelineEyebrow: { color: '#77b8b7', fontSize: 9, fontWeight: '800', letterSpacing: 1.3 },
+  dragHint: { color: '#729191', fontWeight: '500', letterSpacing: 0.2 },
+  dateText: { color: '#f2f5f3', fontSize: 14, fontWeight: '700', marginTop: 2 },
+  phaseSummaryName: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  phaseSummaryPercent: { color: '#a3b7b5', fontWeight: '500' },
+  todayButton: { minWidth: 62, height: 36, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: 'rgba(85, 173, 170, 0.18)' },
+  todayText: { color: '#8cddd3', fontSize: 10, fontWeight: '800' },
+  hideButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: 'rgba(7, 15, 24, 0.9)', borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.3)' },
+  downArrow: { transform: [{ rotate: '180deg' }], marginTop: -5 },
+  track: { marginHorizontal: 18, height: 60, marginTop: 2, overflow: 'hidden' },
+  trackLandscape: { flex: 1, minWidth: 0, marginHorizontal: 14, marginTop: 0 },
+  trackLine: { position: 'absolute', left: 0, right: 0, height: 2, top: 52, backgroundColor: 'rgba(123, 188, 185, 0.28)' },
+  rulerScroll: { flex: 1 },
+  dayCell: { width: DAY_WIDTH, height: 60, alignItems: 'center', paddingTop: 4 },
+  dayWeekday: { color: '#829ea1', fontSize: 9, fontWeight: '700', letterSpacing: 0.4 },
+  dayMonth: { color: '#a4d0ca' },
+  dayNumber: { color: '#c2d2d1', fontSize: 17, fontWeight: '700', marginTop: 3, fontVariant: ['tabular-nums'] },
+  dayTick: { width: 1, height: 10, marginTop: 6, backgroundColor: '#527579' },
+  monthTick: { width: 2, height: 13, backgroundColor: '#93bcb8' },
+  thumb: { position: 'absolute', width: THUMB_SIZE, height: THUMB_SIZE, top: 2, borderRadius: THUMB_SIZE / 2, borderWidth: 1.5, backgroundColor: '#101f29', alignItems: 'center', justifyContent: 'center' },
+  thumbEmoji: { fontSize: 29, lineHeight: 34 },
+  timelineDetails: { marginHorizontal: 18, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(151, 183, 187, 0.17)', flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 10, rowGap: 5 },
+  timelineDetailsLandscape: { width: 230, marginHorizontal: 0, paddingTop: 0, paddingLeft: 20, borderTopWidth: 0, columnGap: 6, rowGap: 8 },
+  detailText: { color: '#779497', fontSize: 9, fontWeight: '700' },
+  detailTextLandscape: { width: '48%', fontSize: 10 },
+  detailValue: { color: '#d5e4e0', fontWeight: '600' },
+  collapsedOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 11 },
+  collapsedTimeline: { position: 'absolute', alignSelf: 'center', bottom: 22, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 22, backgroundColor: 'rgba(7, 15, 24, 0.9)', borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.3)' },
+  collapsedTimelineIPad: { left: 32, alignSelf: 'auto' },
+  collapsedText: { color: '#e9e8d8', fontSize: 12, fontWeight: '700' },
+  collapsedArrow: { color: '#8bceca', fontSize: 18, marginTop: 5 },
 });

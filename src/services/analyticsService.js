@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, TurboModuleRegistry } from 'react-native';
 
 let analyticsClient;
 let didWarnAboutAnalytics = false;
@@ -12,6 +12,13 @@ const warnOnce = (message, error) => {
 const getAnalyticsClient = () => {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') return null;
   if (analyticsClient !== undefined) return analyticsClient;
+
+  // Expo Go and older development builds do not contain Firebase's native module.
+  // Checking before require avoids the native module error on the first UI event.
+  if (!TurboModuleRegistry.get('NativeRNFBTurboApp')) {
+    analyticsClient = null;
+    return null;
+  }
 
   try {
     const { getAnalytics, logEvent, setUserProperty } = require('@react-native-firebase/analytics');
