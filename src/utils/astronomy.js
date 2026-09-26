@@ -5,6 +5,8 @@
  * observer GPS coordinates (latitude, longitude) and date/time.
  */
 
+import moonConfig from '../data/moonConfig.json';
+
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
@@ -89,34 +91,11 @@ export function getMoonAstronomy(date = new Date(), lat = 0, lon = 0) {
   const synodicMonth = 29.53058867;
   const moonAgeDays = (elongation / 360) * synodicMonth;
 
-  // Phase Classification
-  let phaseName = 'New Moon';
-  let phaseEmoji = '🌑';
-  if (elongation < 12 || elongation >= 348) {
-    phaseName = 'New Moon';
-    phaseEmoji = '🌑';
-  } else if (elongation < 78) {
-    phaseName = 'Waxing Crescent';
-    phaseEmoji = '🌒';
-  } else if (elongation < 102) {
-    phaseName = 'First Quarter';
-    phaseEmoji = '🌓';
-  } else if (elongation < 168) {
-    phaseName = 'Waxing Gibbous';
-    phaseEmoji = '🌔';
-  } else if (elongation < 192) {
-    phaseName = 'Full Moon';
-    phaseEmoji = '🌕';
-  } else if (elongation < 258) {
-    phaseName = 'Waning Gibbous';
-    phaseEmoji = '🌖';
-  } else if (elongation < 282) {
-    phaseName = 'Last Quarter';
-    phaseEmoji = '🌗';
-  } else {
-    phaseName = 'Waning Crescent';
-    phaseEmoji = '🌘';
-  }
+  const phase = moonConfig.phaseRules.find(({ minDeg, maxDeg }) => (
+    minDeg < maxDeg
+      ? elongation >= minDeg && elongation < maxDeg
+      : elongation >= minDeg || elongation < maxDeg
+  )) || moonConfig.phaseRules[0];
 
   // 4. Observer Location & Sky Tilt Adjustment
   // In the Northern Hemisphere, Waxing Moon is lit on the right (+X in screen coordinates).
@@ -147,8 +126,9 @@ export function getMoonAstronomy(date = new Date(), lat = 0, lon = 0) {
   const lightY = rawX * Math.sin(tiltRad) + rawY * Math.cos(tiltRad);
 
   return {
-    phaseName,
-    phaseEmoji,
+    phaseName: phase.name,
+    phaseEmoji: phase.emoji,
+    phaseId: phase.id,
     illuminationPercent: Math.round(illumination * 1000) / 10,
     illuminationFraction: illumination,
     elongationDeg: Math.round(elongation * 10) / 10,
@@ -171,44 +151,50 @@ export function getMoonAstronomy(date = new Date(), lat = 0, lon = 0) {
 /**
  * Verified NASA Canon of Lunar Eclipses (Total & Major Umbral Eclipses)
  */
-export const KNOWN_LUNAR_ECLIPSE_DATES = [
-  '2021-05-26', '2021-11-19',
-  '2022-05-16', '2022-11-08',
-  '2023-10-28',
-  '2024-09-18',
-  '2025-03-14', '2025-09-07',
-  '2026-03-03', '2026-08-28',
-  '2027-02-20', '2027-08-17',
-  '2028-12-31',
-  '2029-06-26', '2029-12-20',
-  '2030-06-15', '2030-12-09',
-  '2031-05-07', '2031-10-30',
-  '2032-04-25', '2032-10-18',
-  '2033-04-14', '2033-10-08',
-  '2034-04-03', '2034-09-28',
-  '2035-02-22', '2035-08-19',
-];
+export const KNOWN_LUNAR_ECLIPSE_DATES = moonConfig.events.lunarEclipses.map(({ date }) => date);
 
 /**
  * Mid-Autumn Festival (15th day of 8th lunar month) Full Moon dates
  */
-export const KNOWN_MID_AUTUMN_DATES = [
-  '2021-09-21',
-  '2022-09-10',
-  '2023-09-29',
-  '2024-09-17',
-  '2025-10-06',
-  '2026-09-25',
-  '2027-09-15',
-  '2028-10-03',
-  '2029-09-22',
-  '2030-09-12',
-  '2031-10-01',
-  '2032-09-19',
-  '2033-10-08',
-  '2034-09-27',
-  '2035-09-16',
-];
+export const KNOWN_MID_AUTUMN_DATES = moonConfig.events.midAutumnFullMoonDates;
+
+const localDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export function getLunarEclipseEvent(date = new Date(), astronomy) {
+  if (!astronomy) return null;
+  const rules = moonConfig.events.lunarEclipseFallback;
+  const isFullMoon = astronomy.phaseId === 'fullMoon' || astronomy.illuminationPercent >= rules.minimumFullMoonIlluminationPercent;
+  if (!isFullMoon) return null;
+
+  const dateKey = localDateKey(date);
+  const selectedStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const selectedEndDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  selectedEndDate.setDate(selectedEndDate.getDate() + 1);
+  const selectedEnd = selectedEndDate.getTime();
+  const selectedUtcDay = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const toleranceMs = rules.knownDateToleranceDays * 86400000;
+  const knownEvent = moonConfig.events.lunarEclipses.find((event) => {
+    const phaseTimes = event.phasesUtc || {};
+    const startTime = phaseTimes.penumbralStart || phaseTimes.partialStart || phaseTimes.totalStart || event.greatestEclipseUtc;
+    const endTime = phaseTimes.penumbralEnd || phaseTimes.partialEnd || phaseTimes.totalEnd || event.greatestEclipseUtc;
+    if (startTime && endTime) {
+      return Date.parse(startTime) < selectedEnd && Date.parse(endTime) >= selectedStart;
+    }
+    return Math.abs(selectedUtcDay - Date.parse(`${event.date}T00:00:00Z`)) <= toleranceMs;
+  });
+  if (knownEvent) return knownEvent;
+
+  if (rules.enabled && astronomy.illuminationPercent >= rules.fullMoonIlluminationMinPercent &&
+      Math.abs(astronomy.moonEclipticLat) <= rules.maxAbsEclipticLatitudeDeg) {
+    return { date: dateKey, type: rules.fallbackType, calculated: true };
+  }
+  return null;
+}
 
 /**
  * Automatically determines if a given date corresponds to a Lunar Eclipse (Blood Moon).
@@ -219,30 +205,7 @@ export const KNOWN_MID_AUTUMN_DATES = [
  * @returns {boolean} - True if date is an authentic lunar eclipse
  */
 export function isLunarEclipse(date = new Date(), astronomy) {
-  if (!astronomy) return false;
-  // Lunar eclipses physically occur only during Full Moon
-  const isFullMoon = astronomy.phaseName === 'Full Moon' || astronomy.illuminationPercent >= 94;
-  if (!isFullMoon) return false;
-
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${y}-${m}-${d}`;
-
-  // 1. Check known NASA eclipse dates (covers global timezone variations within ~26 hours)
-  for (const ed of KNOWN_LUNAR_ECLIPSE_DATES) {
-    const diffMs = Math.abs(new Date(dateStr).getTime() - new Date(ed).getTime());
-    if (diffMs <= 86400000 * 1.1) {
-      return true;
-    }
-  }
-
-  // 2. Continuous astronomical formula: Earth umbral cone intersection at lunar orbital nodes
-  if (Math.abs(astronomy.moonEclipticLat) <= 0.65 && astronomy.illuminationPercent >= 97.5) {
-    return true;
-  }
-
-  return false;
+  return Boolean(getLunarEclipseEvent(date, astronomy));
 }
 
 /**
@@ -255,32 +218,28 @@ export function isLunarEclipse(date = new Date(), astronomy) {
  */
 export function isMidAutumnFullMoon(date = new Date(), astronomy) {
   if (!astronomy) return false;
+  const window = moonConfig.events.midAutumnFallbackWindow;
   // Mid-Autumn occurs strictly at Full Moon
-  const isNearFull = astronomy.phaseName === 'Full Moon' || astronomy.illuminationPercent >= 93;
+  const isNearFull = astronomy.phaseId === 'fullMoon' || astronomy.illuminationPercent >= window.minimumFullMoonIlluminationPercent;
   if (!isNearFull) return false;
 
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${y}-${m}-${d}`;
+  const dateStr = localDateKey(date);
 
   // 1. Check verified lunisolar calendar dates (covers global timezone variations within ~26 hours)
   for (const md of KNOWN_MID_AUTUMN_DATES) {
     const diffMs = Math.abs(new Date(dateStr).getTime() - new Date(md).getTime());
-    if (diffMs <= 86400000 * 1.1) {
+    if (diffMs <= 86400000 * window.knownDateToleranceDays) {
       return true;
     }
   }
 
   // 2. General lunisolar calendar window: Full moon between Sept 10 and Oct 10
-  const month = date.getMonth(); // 8 = Sep, 9 = Oct
-  const day = date.getDate();
-  if ((month === 8 && day >= 10) || (month === 9 && day <= 10)) {
-    if (astronomy.phaseName === 'Full Moon' || astronomy.illuminationPercent >= 96) {
+  const monthDay = dateStr.slice(5);
+  if (monthDay >= window.startMonthDay && monthDay <= window.endMonthDay) {
+    if (astronomy.phaseId === 'fullMoon' || astronomy.illuminationPercent >= window.illuminationMinPercent) {
       return true;
     }
   }
 
   return false;
 }
-

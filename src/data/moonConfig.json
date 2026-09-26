@@ -1,0 +1,225 @@
+{
+  "phaseRules": [
+    { "id": "newMoon", "name": "New Moon", "emoji": "🌑", "minDeg": 348, "maxDeg": 12 },
+    { "id": "waxingCrescent", "name": "Waxing Crescent", "emoji": "🌒", "minDeg": 12, "maxDeg": 78 },
+    { "id": "firstQuarter", "name": "First Quarter", "emoji": "🌓", "minDeg": 78, "maxDeg": 102 },
+    { "id": "waxingGibbous", "name": "Waxing Gibbous", "emoji": "🌔", "minDeg": 102, "maxDeg": 168 },
+    { "id": "fullMoon", "name": "Full Moon", "emoji": "🌕", "minDeg": 168, "maxDeg": 192 },
+    { "id": "waningGibbous", "name": "Waning Gibbous", "emoji": "🌖", "minDeg": 192, "maxDeg": 258 },
+    { "id": "lastQuarter", "name": "Last Quarter", "emoji": "🌗", "minDeg": 258, "maxDeg": 282 },
+    { "id": "waningCrescent", "name": "Waning Crescent", "emoji": "🌘", "minDeg": 282, "maxDeg": 348 }
+  ],
+  "events": {
+    "lunarEclipseFallback": {
+      "enabled": true,
+      "knownDateToleranceDays": 1.1,
+      "minimumFullMoonIlluminationPercent": 94,
+      "fullMoonIlluminationMinPercent": 97.5,
+      "maxAbsEclipticLatitudeDeg": 0.65,
+      "fallbackType": "partial"
+    },
+    "midAutumnFallbackWindow": {
+      "startMonthDay": "09-10",
+      "endMonthDay": "10-10",
+      "knownDateToleranceDays": 1.1,
+      "minimumFullMoonIlluminationPercent": 93,
+      "illuminationMinPercent": 96
+    },
+    "lunarEclipses": [
+      { "date": "2021-05-26", "type": "total" },
+      { "date": "2021-11-19", "type": "partial" },
+      { "date": "2022-05-16", "type": "total" },
+      { "date": "2022-11-08", "type": "total" },
+      { "date": "2023-05-05", "type": "penumbral" },
+      { "date": "2023-10-28", "type": "partial" },
+      { "date": "2024-03-25", "type": "penumbral" },
+      { "date": "2024-09-18", "type": "partial" },
+      { "date": "2025-03-14", "type": "total" },
+      { "date": "2025-09-07", "type": "total" },
+      {
+        "date": "2026-03-03",
+        "type": "total",
+        "greatestEclipseUtc": "2026-03-03T11:34:00Z",
+        "phasesUtc": {
+          "penumbralStart": "2026-03-03T08:44:00Z",
+          "partialStart": "2026-03-03T09:50:00Z",
+          "totalStart": "2026-03-03T11:04:00Z",
+          "totalEnd": "2026-03-03T12:03:00Z",
+          "partialEnd": "2026-03-03T13:17:00Z",
+          "penumbralEnd": "2026-03-03T14:23:00Z"
+        }
+      },
+      {
+        "date": "2026-08-28",
+        "type": "partial",
+        "greatestEclipseUtc": "2026-08-28T04:13:00Z",
+        "phasesUtc": {
+          "penumbralStart": "2026-08-28T01:24:00Z",
+          "partialStart": "2026-08-28T02:34:00Z",
+          "partialEnd": "2026-08-28T05:52:00Z",
+          "penumbralEnd": "2026-08-28T07:02:00Z"
+        }
+      },
+      {
+        "date": "2027-02-20",
+        "type": "penumbral",
+        "greatestEclipseUtc": "2027-02-20T23:13:00Z",
+        "phasesUtc": {
+          "penumbralStart": "2027-02-20T21:12:00Z",
+          "penumbralEnd": "2027-02-21T01:13:00Z"
+        }
+      },
+      {
+        "date": "2027-07-18",
+        "type": "penumbral",
+        "greatestEclipseUtc": "2027-07-18T16:03:00Z",
+        "phasesUtc": {
+          "penumbralStart": "2027-07-18T15:57:00Z",
+          "penumbralEnd": "2027-07-18T16:09:00Z"
+        }
+      },
+      {
+        "date": "2027-08-17",
+        "type": "penumbral",
+        "greatestEclipseUtc": "2027-08-17T07:14:00Z",
+        "phasesUtc": {
+          "penumbralStart": "2027-08-17T05:24:00Z",
+          "penumbralEnd": "2027-08-17T09:03:00Z"
+        }
+      },
+      { "date": "2028-01-12", "type": "partial" },
+      { "date": "2028-07-06", "type": "partial" },
+      { "date": "2028-12-31", "type": "total" },
+      { "date": "2029-06-26", "type": "total" },
+      { "date": "2029-12-20", "type": "total" },
+      { "date": "2030-06-15", "type": "partial" },
+      { "date": "2030-12-09", "type": "penumbral" },
+      { "date": "2031-05-07", "type": "penumbral" },
+      { "date": "2031-06-05", "type": "penumbral" },
+      { "date": "2031-10-30", "type": "penumbral" },
+      { "date": "2032-04-25", "type": "total" },
+      { "date": "2032-10-18", "type": "total" },
+      { "date": "2033-04-14", "type": "total" },
+      { "date": "2033-10-08", "type": "total" },
+      { "date": "2034-04-03", "type": "penumbral" },
+      { "date": "2034-09-28", "type": "partial" },
+      { "date": "2035-02-22", "type": "penumbral" },
+      { "date": "2035-08-19", "type": "partial" }
+    ],
+    "midAutumnFullMoonDates": [
+      "2021-09-21", "2022-09-10", "2023-09-29", "2024-09-17", "2025-10-06",
+      "2026-09-25", "2027-09-15", "2028-10-03", "2029-09-22", "2030-09-12",
+      "2031-10-01", "2032-09-19", "2033-10-08", "2034-09-27", "2035-09-16"
+    ]
+  },
+  "appearance": {
+    "regular": {
+      "moonColor": "#ffffff",
+      "moonRoughness": 0.62,
+      "moonEmissive": "#060911",
+      "moonEmissiveIntensity": 0.12,
+      "glowColor": "#d8ebff",
+      "directionalLightColor": "#ffffff",
+      "directionalLightIntensity": 6.5,
+      "pointLightColor": "#fff8eb",
+      "pointLightIntensity": 5.5,
+      "specularColor": "#eaf3ff",
+      "specularIntensity": 2.8,
+      "ambientColor": "#121b28",
+      "ambientIntensity": 0.22,
+      "eclipseOverlayColor": "#a24e2c",
+      "eclipseOverlayEmissive": "#240e07",
+      "eclipseOverlaySpecular": "#c9774f",
+      "eclipseOverlayShininess": 12
+    },
+    "midAutumn": {
+      "label": "Mid-Autumn Full Moon",
+      "emoji": "🏮",
+      "accent": "#f6d27e",
+      "moonColor": "#fffdf7",
+      "moonRoughness": 0.48,
+      "moonEmissive": "#241f17",
+      "moonEmissiveIntensity": 0.16,
+      "glowColor": "#fff6e2",
+      "directionalLightColor": "#fffdf5",
+      "directionalLightIntensity": 11.2,
+      "pointLightColor": "#fffaf0",
+      "pointLightIntensity": 9.5,
+      "specularColor": "#ffffff",
+      "specularIntensity": 5.2,
+      "ambientColor": "#1e1c26",
+      "ambientIntensity": 0.4
+    },
+    "eclipse": {
+      "total": {
+        "label": "Total Lunar Eclipse",
+        "emoji": "🔴",
+        "accent": "#e57855",
+        "moonColor": "#96482e",
+        "moonRoughness": 0.72,
+        "moonEmissive": "#260e07",
+        "moonEmissiveIntensity": 0.22,
+        "glowColor": "#c86438",
+        "directionalLightColor": "#bf633b",
+        "directionalLightIntensity": 4.0,
+        "pointLightColor": "#9c4524",
+        "pointLightIntensity": 3.2,
+        "specularColor": "#c9774f",
+        "specularIntensity": 1.6,
+        "ambientColor": "#170e0a",
+        "ambientIntensity": 0.2,
+        "eclipseOverlayOpacity": 0.45,
+        "eclipseOverlayColor": "#a24e2c",
+        "eclipseOverlayEmissive": "#240e07",
+        "eclipseOverlaySpecular": "#c9774f",
+        "eclipseOverlayShininess": 12
+      },
+      "partial": {
+        "label": "Partial Lunar Eclipse",
+        "emoji": "🌘",
+        "accent": "#d8a17b",
+        "moonColor": "#d2b8a0",
+        "moonRoughness": 0.68,
+        "moonEmissive": "#15100e",
+        "moonEmissiveIntensity": 0.12,
+        "glowColor": "#e4b48e",
+        "directionalLightColor": "#dfc5aa",
+        "directionalLightIntensity": 5.2,
+        "pointLightColor": "#c5a88b",
+        "pointLightIntensity": 4.3,
+        "specularColor": "#e2bea0",
+        "specularIntensity": 2.1,
+        "ambientColor": "#171310",
+        "ambientIntensity": 0.2,
+        "eclipseOverlayOpacity": 0.22,
+        "eclipseOverlayColor": "#906b55",
+        "eclipseOverlayEmissive": "#15100e",
+        "eclipseOverlaySpecular": "#bd9378",
+        "eclipseOverlayShininess": 10
+      },
+      "penumbral": {
+        "label": "Penumbral Lunar Eclipse",
+        "emoji": "🌕",
+        "accent": "#c3b39a",
+        "moonColor": "#eee6d8",
+        "moonRoughness": 0.64,
+        "moonEmissive": "#100e0a",
+        "moonEmissiveIntensity": 0.11,
+        "glowColor": "#d8d0c0",
+        "directionalLightColor": "#e7dfd0",
+        "directionalLightIntensity": 5.8,
+        "pointLightColor": "#d5cab9",
+        "pointLightIntensity": 4.8,
+        "specularColor": "#e5ddce",
+        "specularIntensity": 2.4,
+        "ambientColor": "#151310",
+        "ambientIntensity": 0.21,
+        "eclipseOverlayOpacity": 0.08,
+        "eclipseOverlayColor": "#bdb3a1",
+        "eclipseOverlayEmissive": "#100e0a",
+        "eclipseOverlaySpecular": "#d8ceba",
+        "eclipseOverlayShininess": 8
+      }
+    }
+  }
+}

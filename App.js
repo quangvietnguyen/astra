@@ -5,8 +5,9 @@ import { StyleSheet, View, Text, TouchableOpacity, Switch, ScrollView, Animated,
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
 import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trackOrbiterVisibility } from './src/services/analyticsService';
-import { getMoonAstronomy, isLunarEclipse, isMidAutumnFullMoon } from './src/utils/astronomy';
+import { getMoonAstronomy, getLunarEclipseEvent, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
+import moonConfig from './src/data/moonConfig.json';
 
 const THUMB_SIZE = 54;
 const ZOOM_THUMB_SIZE = 18;
@@ -67,13 +68,14 @@ export default function App() {
   const lat = location?.latitude ?? 0;
   const lon = location?.longitude ?? 0;
   const astronomy = React.useMemo(() => getMoonAstronomy(displayedDate, lat, lon), [displayedDate, lat, lon]);
-  const isMoonEclipse = React.useMemo(() => isLunarEclipse(displayedDate, astronomy), [displayedDate, astronomy]);
+  const eclipseEvent = React.useMemo(() => getLunarEclipseEvent(displayedDate, astronomy), [displayedDate, astronomy]);
+  const isMoonEclipse = Boolean(eclipseEvent);
   const isMidAutumn = React.useMemo(() => !isMoonEclipse && isMidAutumnFullMoon(displayedDate, astronomy), [displayedDate, astronomy, isMoonEclipse]);
 
   React.useEffect(() => {
     const today = new Date();
     const todayAstro = getMoonAstronomy(today, lat, lon);
-    if (isLunarEclipse(today, todayAstro)) syncAppIconWithPhase('Eclipse', true);
+    if (getLunarEclipseEvent(today, todayAstro)) syncAppIconWithPhase('Eclipse', true);
     else if (isMidAutumnFullMoon(today, todayAstro)) syncAppIconWithPhase('Full Moon', false);
     else if (todayAstro?.phaseName) syncAppIconWithPhase(todayAstro.phaseName, false);
   }, [lat, lon]);
@@ -155,10 +157,11 @@ export default function App() {
   };
   const formatCoord = (value, isLat) => `${Math.abs(value).toFixed(2)}° ${isLat ? (value >= 0 ? 'N' : 'S') : (value >= 0 ? 'E' : 'W')}`;
 
-  const phaseName = isMoonEclipse ? 'Total Lunar Eclipse' : isMidAutumn ? 'Mid-Autumn Full Moon' : astronomy.phaseName;
+  const eclipseAppearance = eclipseEvent ? moonConfig.appearance.eclipse[eclipseEvent.type] || moonConfig.appearance.eclipse.total : null;
+  const phaseName = eclipseAppearance ? eclipseAppearance.label : isMidAutumn ? moonConfig.appearance.midAutumn.label : astronomy.phaseName;
   zoomPhaseRef.current = astronomy.phaseName;
-  const phaseEmoji = isMoonEclipse ? '🔴' : isMidAutumn ? '🏮' : astronomy.phaseEmoji;
-  const accent = isMoonEclipse ? '#e57855' : isMidAutumn ? '#f6d27e' : '#e8d19a';
+  const phaseEmoji = eclipseAppearance ? eclipseAppearance.emoji : isMidAutumn ? moonConfig.appearance.midAutumn.emoji : astronomy.phaseEmoji;
+  const accent = eclipseAppearance ? eclipseAppearance.accent : isMidAutumn ? moonConfig.appearance.midAutumn.accent : '#e8d19a';
   const hemisphere = location ? (astronomy.isSouthernHemisphere ? 'Southern' : 'Northern') : 'Equatorial';
   const timelineDates = React.useMemo(() => TIMELINE_DAYS.map((delta) => {
     const date = new Date(clockTime);
@@ -184,7 +187,7 @@ export default function App() {
     <View style={s.container}>
       <StatusBar style="light" />
       <ImageBackground source={require('./assets/stars.jpeg')} resizeMode="cover" style={s.stars}>
-        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} />
+        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} />
 
         <View style={[s.header, isTablet && s.headerTablet]}>
           <View style={s.headerCopy} pointerEvents="none">
@@ -216,7 +219,7 @@ export default function App() {
         >
             <View style={[s.timelineHeader, isIPadLandscape && s.timelineHeaderLandscape]}>
               <View style={[s.dateCopy, isIPadLandscape && s.dateCopyLandscape]}>
-                <Text style={s.timelineEyebrow}>LUNAR TIMELINE <Text style={s.dragHint}>· DRAG THE MOON</Text></Text>
+                <Text style={s.timelineEyebrow} numberOfLines={1} ellipsizeMode="tail">TIMELINE <Text style={s.dragHint}>· TIDAL LOCKING NOT MODELED</Text></Text>
                 <Text style={s.dateText} numberOfLines={1}>{displayedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                 <Text style={[s.phaseSummaryName, { color: accent }]} numberOfLines={1}>{phaseName} <Text style={s.phaseSummaryPercent}>· {astronomy.illuminationPercent}% lit</Text></Text>
               </View>
