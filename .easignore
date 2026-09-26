@@ -1,0 +1,32 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.log*
+.env
+.env.*
+GoogleService-Info.plist
+google-services.json
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# macOS
+.DS_Store
+.vscode/
+
+# Local builds & archives
+builds/
+secrets/
+*.ipa
+*.aab
+*.apk
+
+# Bundle the Firebase client configuration while keeping it out of Git.
+!/GoogleService-Info.plist

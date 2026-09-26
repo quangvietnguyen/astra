@@ -26,13 +26,10 @@ import { getMoonAstronomy, isLunarEclipse, isMidAutumnFullMoon } from './src/uti
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 
 export default function App() {
-  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isTablet = windowWidth >= 768;
   const tabletDeckWidth = Math.min(windowWidth - 48, 1440);
-  const tabletColumns = tabletDeckWidth >= 4 * 310 * fontScale + 36 ? 4
-    : tabletDeckWidth >= 2 * 310 * fontScale + 12 ? 2 : 1;
-  const tabletCardWidth = (tabletDeckWidth - (tabletColumns - 1) * 12) / tabletColumns;
-  const tabletCardMinHeight = 264 * Math.max(1, fontScale);
+  const tabletCardWidth = Math.min(330, Math.max(290, tabletDeckWidth / 3.1));
   const styles = React.useMemo(() => isTablet
     ? Object.fromEntries(Object.entries(baseStyles).map(([key, value]) => [
         key, tabletStyles[key] ? [value, tabletStyles[key]] : value,
@@ -376,7 +373,7 @@ export default function App() {
               <View style={styles.metricsGrid}>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">MOON AGE</Text>
-                  <Text style={styles.metricValue} numberOfLines={1}>{astronomy.moonAgeDays} d</Text>
+                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>{astronomy.moonAgeDays} d</Text>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">DISTANCE</Text>
@@ -386,11 +383,11 @@ export default function App() {
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">ELONGATION</Text>
-                  <Text style={styles.metricValue} numberOfLines={1}>{astronomy.elongationDeg}°</Text>
+                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>{astronomy.elongationDeg}°</Text>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel} numberOfLines={1} ellipsizeMode="tail">HEMISPHERE</Text>
-                  <Text style={styles.metricValue} numberOfLines={1}>
+                  <Text style={styles.metricValue} numberOfLines={isTablet ? 2 : 1}>
                     {location != null
                       ? astronomy.isSouthernHemisphere
                         ? 'Southern'
@@ -488,7 +485,7 @@ export default function App() {
               <View style={styles.orbiterMetricsRow}>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ALTITUDE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>~50 km</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>~50 km</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">ORBIT</Text>
@@ -496,11 +493,11 @@ export default function App() {
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">SPEED</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>1.6 km/s</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>1.6 km/s</Text>
                 </View>
                 <View style={styles.orbiterMetric}>
                   <Text style={styles.orbiterMetricLabel} numberOfLines={1} ellipsizeMode="tail">LRO SCALE</Text>
-                  <Text style={styles.orbiterMetricVal} numberOfLines={1}>{Math.round(moonScale * 100)}%</Text>
+                  <Text style={styles.orbiterMetricVal} numberOfLines={isTablet ? 2 : 1}>{Math.round(moonScale * 100)}%</Text>
                 </View>
               </View>
             </>
@@ -698,14 +695,16 @@ export default function App() {
 
           {isTablet ? (
             <ScrollView
-              style={{ flexGrow: 0, maxHeight: windowHeight * 0.72 }}
-              contentContainerStyle={[styles.tabletCardsDeck, { width: tabletDeckWidth }]}
+              horizontal
+              showsHorizontalScrollIndicator
+              style={{ flexGrow: 0, alignSelf: 'center', width: tabletDeckWidth, maxHeight: windowHeight * 0.72 }}
+              contentContainerStyle={[styles.tabletCardsDeck, { width: Math.max(tabletDeckWidth, 4 * tabletCardWidth + 36) }]}
               pointerEvents="auto"
             >
               {[0, 1, 2, 3].map((cardIdx) => (
                 <View
                   key={`tablet-card-${cardIdx}`}
-                  style={[styles.tabletCard, { width: tabletCardWidth, minHeight: tabletCardMinHeight }]}
+                  style={[styles.tabletCard, { width: tabletCardWidth }]}
                 >
                   {renderCardContent(cardIdx)}
                 </View>
@@ -841,16 +840,16 @@ const baseStyles = StyleSheet.create({
   },
   tabletCardsDeck: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     alignItems: 'stretch',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 12,
-    alignSelf: 'center',
   },
   tabletCard: {
     flexGrow: 0,
     flexShrink: 0,
     minWidth: 0,
+    minHeight: 168,
     backgroundColor: 'rgba(9, 14, 26, 0.90)',
     borderRadius: 16,
     padding: 14,
@@ -1316,10 +1315,8 @@ const baseStyles = StyleSheet.create({
   },
 });
 
-// Tablet cards reserve space for the longest labels instead of shrinking each
-// value independently. Dimensions depend on the viewport/text scale, never date.
+// Tablet text and controls stay readable while cards size to their content.
 const tabletStyles = StyleSheet.create({
-  phaseTitleRow: { flexDirection: 'column', alignItems: 'flex-start', gap: 4 },
   phaseName: { fontSize: 16, lineHeight: 20, letterSpacing: 0 },
   orbiterTitle: { fontSize: 16, lineHeight: 20, letterSpacing: 0 },
   phaseSub: { fontSize: 12, lineHeight: 16 },
@@ -1329,27 +1326,23 @@ const tabletStyles = StyleSheet.create({
   controlsTitle: { fontSize: 12, lineHeight: 16, letterSpacing: 0.6 },
   fullPercentBadgeText: { fontSize: 10, lineHeight: 14 },
   activeBadgeText: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
-  activeBadge: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
-  metricsGrid: { flexWrap: 'wrap', rowGap: 8, marginTop: 8 },
-  orbiterMetricsRow: { flexWrap: 'wrap', rowGap: 8, marginTop: 8 },
-  metricItem: { flex: 0, flexBasis: '50%', alignItems: 'flex-start' },
-  orbiterMetric: { flex: 0, flexBasis: '50%', alignItems: 'flex-start' },
-  metricLabel: { fontSize: 10, lineHeight: 14, letterSpacing: 0.5 },
-  orbiterMetricLabel: { fontSize: 10, lineHeight: 14, letterSpacing: 0.5 },
+  activeBadge: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 8 },
+  metricLabel: { fontSize: 8, lineHeight: 12, letterSpacing: 0 },
+  orbiterMetricLabel: { fontSize: 8, lineHeight: 12, letterSpacing: 0 },
   metricValue: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },
   orbiterMetricVal: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },
   progressBarSection: { marginTop: 6 },
   progressLabel: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
   progressLabelHighlight: { fontSize: 10, lineHeight: 14, letterSpacing: 0 },
   progressBarTrack: { marginTop: 4 },
-  sizeBtn: { flex: 1, minHeight: 44, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center' },
+  sizeBtn: { flex: 1, minHeight: 36, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center' },
   sizeBtnText: { fontSize: 12, lineHeight: 16 },
   sizeCenterBtn: { flex: 1, minWidth: 0, paddingHorizontal: 4 },
   sizeCenterVal: { fontSize: 16, lineHeight: 20, fontVariant: ['tabular-nums'] },
   sizeCenterSub: { fontSize: 10, lineHeight: 14 },
-  presetPill: { minHeight: 44, justifyContent: 'center' },
+  presetPill: { minHeight: 32, justifyContent: 'center' },
   presetPillText: { fontSize: 12, lineHeight: 16 },
-  dateStepBtn: { flex: 1, minHeight: 44, paddingHorizontal: 4, justifyContent: 'center' },
+  dateStepBtn: { flex: 1, minHeight: 36, paddingHorizontal: 4, justifyContent: 'center' },
   dateStepText: { fontSize: 12, lineHeight: 16 },
   dateCenterBtn: { flex: 2, paddingHorizontal: 4 },
   dateCenterText: { fontSize: 14, lineHeight: 18, fontVariant: ['tabular-nums'] },

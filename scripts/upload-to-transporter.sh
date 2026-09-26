@@ -10,6 +10,8 @@ if [ ! -f "$IPA_PATH" ]; then
   exit 1
 fi
 
+python3 "$(dirname "$0")/verify-ios-ipa.py" "$IPA_PATH"
+
 echo "📦 Found iOS App Binary: $IPA_PATH ($(du -h "$IPA_PATH" | cut -f1))"
 echo "🚀 Uploading to Apple App Store Connect via Transporter..."
 

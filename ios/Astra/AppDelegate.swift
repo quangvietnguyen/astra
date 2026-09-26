@@ -22,14 +22,11 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
 
 #if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
+
 // @generated begin @react-native-firebase/app-didFinishLaunchingWithOptions - expo prebuild (DO NOT MODIFY) sync-10e8520570672fd76b2403b7e1e27f5198a6349a
 FirebaseApp.configure()
 // @generated end @react-native-firebase/app-didFinishLaunchingWithOptions
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
+    // SceneDelegate starts React Native after its window scene connects.
 #endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -53,6 +50,27 @@ FirebaseApp.configure()
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
   }
+
+  // MARK: - UIScene Lifecycle (iOS 27+ SDK)
+  public func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    UIViewController.astra_enableAlertSuppressionForDynamicIcon()
+    let config = UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+    config.delegateClass = SceneDelegate.self
+    return config
+  }
+
+  // MARK: - Orientation Lock
+  public override func application(
+    _ application: UIApplication,
+    supportedInterfaceOrientationsFor window: UIWindow?
+  ) -> UIInterfaceOrientationMask {
+    return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+  }
+
 }
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {

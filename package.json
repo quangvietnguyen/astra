@@ -18,7 +18,7 @@
     "eas:build:android:preview": "eas build --platform android --profile preview",
     "eas:build:android:prod": "eas build --platform android --profile production",
     "eas:build:all:prod": "eas build --platform all --profile production",
-    "eas:build:local:ios": "mkdir -p builds && eas build --platform ios --profile production --local --output=./builds/astra.ipa",
+    "eas:build:local:ios": "mkdir -p builds && EXPO_NO_KEYCHAIN=1 eas build --platform ios --profile production --local --output=./builds/astra.ipa",
     "eas:build:local:ios:submit": "pnpm run eas:build:local:ios && pnpm run transporter:upload:ios",
     "transporter:upload:ios": "bash scripts/upload-to-transporter.sh ./builds/astra.ipa",
     "transporter:open": "bash scripts/upload-to-transporter.sh ./builds/astra.ipa",
