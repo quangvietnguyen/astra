@@ -15,11 +15,13 @@ const blendLight = (light, intensity, color, amount) => {
   light.color.lerp(color, amount);
 };
 
-function useSmoothLunarRotation(ref, dayOffset) {
+function useSmoothLunarRotation(ref, dayOffset, tidalLocked = false) {
   const initialized = React.useRef(false);
   useFrame(({ clock }, delta) => {
     if (!ref.current) return;
-    const target = -(clock.getElapsedTime() / SLOW_ROTATION_DIVISOR + dayOffset * LUNAR_ROTATION_PER_DAY_RAD);
+    // A locked Moon settles on the texture's Earth-facing hemisphere, then keeps
+    // that same face toward the viewer as the selected date changes.
+    const target = tidalLocked ? EARTH_FACING_ROTATION : -(clock.getElapsedTime() / SLOW_ROTATION_DIVISOR + dayOffset * LUNAR_ROTATION_PER_DAY_RAD);
     if (!initialized.current) {
       ref.current.rotation.y = target;
       initialized.current = true;
@@ -27,6 +29,10 @@ function useSmoothLunarRotation(ref, dayOffset) {
     }
     // Use the shortest angular path when the ruler crosses several dates at once.
     const difference = Math.atan2(Math.sin(target - ref.current.rotation.y), Math.cos(target - ref.current.rotation.y));
+    if (tidalLocked && Math.abs(difference) < 0.001) {
+      ref.current.rotation.y = EARTH_FACING_ROTATION;
+      return;
+    }
     ref.current.rotation.y += difference * blend(delta, PHASE_SPEED);
   });
 }
@@ -35,13 +41,16 @@ function useSmoothLunarRotation(ref, dayOffset) {
 // Gives a graceful, visible celestial rotation while remaining calm and serene
 export const SLOW_ROTATION_DIVISOR = 60;
 export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / 27.321661;
+// At zero rotation, SphereGeometry faces U=0.25 toward the camera. The texture's
+// familiar Earth-facing hemisphere is centered at U=0.5, requiring a quarter-turn.
+const EARTH_FACING_ROTATION = -Math.PI / 2;
 
-function MoonCore({ radius, dayOffset = 0, appearance = moonConfig.appearance.regular }) {
+function MoonCore({ radius, dayOffset = 0, appearance = moonConfig.appearance.regular, tidalLocked = false }) {
   const ref = React.useRef();
   const materialRef = React.useRef();
   const initialized = React.useRef(false);
   const map = useLoader(TextureLoader, moonImg);
-  useSmoothLunarRotation(ref, dayOffset);
+  useSmoothLunarRotation(ref, dayOffset, tidalLocked);
 
   const materialProps = appearance;
 
@@ -157,9 +166,9 @@ function SeamlessSunlitGlow({ radius, sunPos, appearance = moonConfig.appearance
   );
 }
 
-function MoonFallback({ radius, dayOffset = 0, appearance = moonConfig.appearance.regular }) {
+function MoonFallback({ radius, dayOffset = 0, appearance = moonConfig.appearance.regular, tidalLocked = false }) {
   const ref = React.useRef();
-  useSmoothLunarRotation(ref, dayOffset);
+  useSmoothLunarRotation(ref, dayOffset, tidalLocked);
   return (
     <mesh ref={ref} visible position={[0, 0, 0]}>
       <sphereGeometry args={[radius, 48, 24]} />
@@ -168,7 +177,7 @@ function MoonFallback({ radius, dayOffset = 0, appearance = moonConfig.appearanc
   );
 }
 
-function MoonEclipse({ radius, appearance, dayOffset = 0 }) {
+function MoonEclipse({ radius, appearance, dayOffset = 0, tidalLocked = false }) {
   const ref = React.useRef();
   const materialRef = React.useRef();
   const initialized = React.useRef(false);
@@ -177,7 +186,7 @@ function MoonEclipse({ radius, appearance, dayOffset = 0 }) {
   const overlayEmissive = React.useMemo(() => new THREE.Color(appearance.eclipseOverlayEmissive || regular.eclipseOverlayEmissive), [appearance, regular.eclipseOverlayEmissive]);
   const overlaySpecular = React.useMemo(() => new THREE.Color(appearance.eclipseOverlaySpecular || regular.eclipseOverlaySpecular), [appearance, regular.eclipseOverlaySpecular]);
   const targetOpacity = appearance.eclipseOverlayOpacity || 0;
-  useSmoothLunarRotation(ref, dayOffset);
+  useSmoothLunarRotation(ref, dayOffset, tidalLocked);
   useFrame((_, delta) => {
     if (!materialRef.current) return;
     const amount = initialized.current ? blend(delta, PHASE_SPEED) : 1;
@@ -209,6 +218,7 @@ function MoonSystem({
   moonScale,
   targetY,
   dayOffset = 0,
+  tidalLocked = false,
 }) {
   const systemRef = React.useRef();
   const initialPosition = React.useRef([0, targetY, 0]);
@@ -224,9 +234,9 @@ function MoonSystem({
 
   return (
     <group ref={systemRef} position={initialPosition.current} scale={initialScale.current}>
-      <MoonCore radius={radius} dayOffset={dayOffset} appearance={appearance} />
+      <MoonCore radius={radius} dayOffset={dayOffset} appearance={appearance} tidalLocked={tidalLocked} />
       <SeamlessSunlitGlow radius={radius} sunPos={sunPos} appearance={appearance} />
-      <MoonEclipse radius={radius} appearance={appearance} dayOffset={dayOffset} />
+      <MoonEclipse radius={radius} appearance={appearance} dayOffset={dayOffset} tidalLocked={tidalLocked} />
       {showOrbiter && (
         <LunarOrbiter
           center={[0, 0, 0]}
@@ -241,7 +251,7 @@ function MoonSystem({
   );
 }
 
-function MoonFallbackSystem({ radius, moonScale, targetY, dayOffset = 0, appearance }) {
+function MoonFallbackSystem({ radius, moonScale, targetY, dayOffset = 0, appearance, tidalLocked = false }) {
   const systemRef = React.useRef();
   const initialPosition = React.useRef([0, targetY, 0]);
   const initialScale = React.useRef(moonScale);
@@ -254,7 +264,7 @@ function MoonFallbackSystem({ radius, moonScale, targetY, dayOffset = 0, appeara
   });
   return (
     <group ref={systemRef} position={initialPosition.current} scale={initialScale.current}>
-      <MoonFallback radius={radius} dayOffset={dayOffset} appearance={appearance} />
+      <MoonFallback radius={radius} dayOffset={dayOffset} appearance={appearance} tidalLocked={tidalLocked} />
     </group>
   );
 }
@@ -302,6 +312,7 @@ export default function Moon({
   hasHUD = true,
   hudCenterY = 0.70,
   dayOffset = 0,
+  tidalLocked = false,
 }) {
   const targetY = hasHUD ? hudCenterY : 0.0;
   const [lx, ly, lz] = lightPosition;
@@ -323,6 +334,7 @@ export default function Moon({
             targetY={targetY}
             dayOffset={dayOffset}
             appearance={appearance}
+            tidalLocked={tidalLocked}
           />
         }
       >
@@ -334,6 +346,7 @@ export default function Moon({
           moonScale={moonScale}
           targetY={targetY}
           dayOffset={dayOffset}
+          tidalLocked={tidalLocked}
         />
       </React.Suspense>
     </Canvas>

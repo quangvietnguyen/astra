@@ -1,7 +1,7 @@
 import './src/utils/patchGL';
 import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text, TouchableOpacity, Switch, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
 import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trackOrbiterVisibility } from './src/services/analyticsService';
@@ -27,8 +27,10 @@ export default function App() {
   const timelineRef = React.useRef(null);
   const scrollCommitted = React.useRef(false);
   const previewDaysRef = React.useRef(0);
-  const [zoomTrackWidth, setZoomTrackWidth] = React.useState(80);
-  const zoomTrackWidthRef = React.useRef(zoomTrackWidth);
+  const [zoomTrackHeight, setZoomTrackHeight] = React.useState(102);
+  const zoomTrackHeightRef = React.useRef(zoomTrackHeight);
+  const zoomOpacity = React.useRef(new Animated.Value(1)).current;
+  const zoomFadeTimerRef = React.useRef(null);
   const [location, setLocation] = React.useState(null);
   const [isLoadingLocation, setIsLoadingLocation] = React.useState(true);
   const [dayOffset, setDayOffset] = React.useState(0);
@@ -37,12 +39,31 @@ export default function App() {
   const [showTimeline, setShowTimeline] = React.useState(true);
   const timelineAnimation = React.useRef(new Animated.Value(1)).current;
   const [showOrbiter, setShowOrbiter] = React.useState(true);
+  const [tidalLocked, setTidalLocked] = React.useState(false);
   const [clockTime, setClockTime] = React.useState(() => new Date());
   const moonScaleRef = React.useRef(1);
   const zoomStartRef = React.useRef(1);
   const zoomPhaseRef = React.useRef('');
-  zoomTrackWidthRef.current = zoomTrackWidth;
+  zoomTrackHeightRef.current = zoomTrackHeight;
   moonScaleRef.current = moonScale;
+
+  const revealZoomControl = React.useCallback(() => {
+    if (zoomFadeTimerRef.current) clearTimeout(zoomFadeTimerRef.current);
+    Animated.timing(zoomOpacity, { toValue: 1, duration: 140, useNativeDriver: true }).start();
+  }, [zoomOpacity]);
+  const scheduleZoomFade = React.useCallback(() => {
+    if (zoomFadeTimerRef.current) clearTimeout(zoomFadeTimerRef.current);
+    zoomFadeTimerRef.current = setTimeout(() => {
+      Animated.timing(zoomOpacity, { toValue: 0.18, duration: 550, useNativeDriver: true }).start();
+    }, 2800);
+  }, [zoomOpacity]);
+
+  React.useEffect(() => {
+    scheduleZoomFade();
+    return () => {
+      if (zoomFadeTimerRef.current) clearTimeout(zoomFadeTimerRef.current);
+    };
+  }, [scheduleZoomFade]);
 
   React.useEffect(() => {
     let active = true;
@@ -119,20 +140,22 @@ export default function App() {
   const zoomResponder = React.useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { zoomStartRef.current = moonScaleRef.current; },
+    onPanResponderGrant: () => { revealZoomControl(); zoomStartRef.current = moonScaleRef.current; },
     onPanResponderMove: (_, gesture) => {
-      const travelWidth = Math.max(1, zoomTrackWidthRef.current - ZOOM_THUMB_SIZE);
-      const scale = Math.max(0.6, Math.min(1.6, zoomStartRef.current + gesture.dx / travelWidth));
+      const travelHeight = Math.max(1, zoomTrackHeightRef.current - ZOOM_THUMB_SIZE);
+      const scale = Math.max(0.6, Math.min(1.6, zoomStartRef.current - gesture.dy / travelHeight));
       const nextScale = Number(scale.toFixed(2));
       moonScaleRef.current = nextScale;
       setMoonScale(nextScale);
     },
     onPanResponderRelease: () => {
+      scheduleZoomFade();
       if (moonScaleRef.current !== zoomStartRef.current) {
         trackMoonSizeSelection({ scale: moonScaleRef.current, method: 'drag', phaseName: zoomPhaseRef.current });
       }
     },
-  }), []);
+    onPanResponderTerminate: scheduleZoomFade,
+  }), [revealZoomControl, scheduleZoomFade]);
 
   const selectMoonSize = (scale, method) => {
     const nextScale = Math.max(0.6, Math.min(1.6, Number(scale.toFixed(2))));
@@ -187,7 +210,7 @@ export default function App() {
     <View style={s.container}>
       <StatusBar style="light" />
       <ImageBackground source={require('./assets/stars.jpeg')} resizeMode="cover" style={s.stars}>
-        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} />
+        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
 
         <View style={[s.header, isTablet && s.headerTablet]}>
           <View style={s.headerCopy} pointerEvents="none">
@@ -195,17 +218,20 @@ export default function App() {
             {location && <Text style={s.location} numberOfLines={1}><Text style={s.locationDot}>●  </Text>{`${formatCoord(location.latitude, true)}, ${formatCoord(location.longitude, false)}${location.city ? ` (${location.city})` : ''}`}</Text>}
             {isLoadingLocation && <Text style={s.location}>Locating…</Text>}
           </View>
-          <View style={s.satelliteControl}><Text style={s.satelliteIcon}>🛰</Text><Switch value={showOrbiter} onValueChange={toggleOrbiter} trackColor={{ false: '#3b4c55', true: '#5ac8ba' }} thumbColor="#ffffff" ios_backgroundColor="#3b4c55" style={s.satelliteSwitch} accessibilityLabel="Show NASA LRO satellite" /></View>
         </View>
 
         <View style={[s.floatingControls, isIPhone && s.floatingControlsIPhone, isTablet && s.floatingControlsTablet]}>
-          <View style={s.zoomControl}>
-            <View style={s.zoomTrack} onLayout={(event) => { const next = event.nativeEvent.layout.width; if (next !== zoomTrackWidthRef.current) { zoomTrackWidthRef.current = next; setZoomTrackWidth(next); } }}>
+          <Animated.View
+            style={[s.zoomControl, { opacity: zoomOpacity }]}
+            onTouchStart={revealZoomControl}
+            onTouchEnd={scheduleZoomFade}
+          >
+            <View style={s.zoomTrack} onLayout={(event) => { const next = event.nativeEvent.layout.height; if (next !== zoomTrackHeightRef.current) { zoomTrackHeightRef.current = next; setZoomTrackHeight(next); } }}>
               <View style={s.zoomLine} />
-              <View style={[s.zoomFill, { width: `${(moonScale - 0.6) * 100}%` }]} />
-              <View style={[s.zoomThumb, { left: (moonScale - 0.6) * (zoomTrackWidth - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Moon zoom" accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)} percent` }} accessibilityActions={[{ name: 'increment', label: 'Zoom in' }, { name: 'decrement', label: 'Zoom out' }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
+              <View style={[s.zoomFill, { height: (moonScale - 0.6) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} />
+              <View style={[s.zoomThumb, { top: (1.6 - moonScale) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Moon zoom" accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)} percent` }} accessibilityActions={[{ name: 'increment', label: 'Zoom in' }, { name: 'decrement', label: 'Zoom out' }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
             </View>
-          </View>
+          </Animated.View>
         </View>
 
         <Animated.View
@@ -219,7 +245,30 @@ export default function App() {
         >
             <View style={[s.timelineHeader, isIPadLandscape && s.timelineHeaderLandscape]}>
               <View style={[s.dateCopy, isIPadLandscape && s.dateCopyLandscape]}>
-                <Text style={s.timelineEyebrow} numberOfLines={1} ellipsizeMode="tail">TIMELINE <Text style={s.dragHint}>· TIDAL LOCKING NOT MODELED</Text></Text>
+                <View style={s.timelineEyebrowRow}>
+                  <Text style={s.timelineEyebrow}>TIMELINE</Text>
+                  <TouchableOpacity
+                    onPress={() => setTidalLocked((locked) => !locked)}
+                    style={[s.tidalLockButton, tidalLocked && s.tidalLockButtonActive]}
+                    hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Tidal lock ${tidalLocked ? 'on' : 'off'}`}
+                    accessibilityState={{ selected: tidalLocked }}
+                    accessibilityHint="Stops the Moon's rotation while the light source continues to follow the selected date"
+                  >
+                    <Text style={[s.tidalLockText, tidalLocked && s.tidalLockTextActive]}>TIDAL LOCK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => toggleOrbiter(!showOrbiter)}
+                    style={[s.satelliteButton, showOrbiter && s.satelliteButtonActive]}
+                    hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Satellite ${showOrbiter ? 'on' : 'off'}`}
+                    accessibilityState={{ selected: showOrbiter }}
+                  >
+                    <Text style={[s.satelliteButtonText, showOrbiter && s.satelliteButtonTextActive]}>SATELLITE</Text>
+                  </TouchableOpacity>
+                </View>
                 <Text style={s.dateText} numberOfLines={1}>{displayedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                 <Text style={[s.phaseSummaryName, { color: accent }]} numberOfLines={1}>{phaseName} <Text style={s.phaseSummaryPercent}>· {astronomy.illuminationPercent}% lit</Text></Text>
               </View>
@@ -285,14 +334,11 @@ const s = StyleSheet.create({
   floatingControls: { position: 'absolute', top: 80, right: 16, zIndex: 11, alignItems: 'flex-end' },
   floatingControlsIPhone: { top: 64 },
   floatingControlsTablet: { top: 78, right: 16 },
-  zoomControl: { width: 102, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
-  zoomTrack: { height: 22, justifyContent: 'center' },
-  zoomLine: { height: 3, borderRadius: 2, backgroundColor: '#3b5860' },
-  zoomFill: { position: 'absolute', left: 0, height: 3, borderRadius: 2, backgroundColor: '#73cec3' },
-  zoomThumb: { position: 'absolute', width: ZOOM_THUMB_SIZE, height: ZOOM_THUMB_SIZE, top: 2, borderRadius: 9, backgroundColor: '#e5f4ed', borderWidth: 2, borderColor: '#83d3c7' },
-  satelliteControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: 83, height: 30, paddingLeft: 7, paddingRight: 0, borderRadius: 15, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
-  satelliteIcon: { color: '#e2eeed', fontSize: 14 },
-  satelliteSwitch: { transform: [{ scaleX: 0.62 }, { scaleY: 0.62 }], marginRight: -8 },
+  zoomControl: { width: 34, height: 118, paddingHorizontal: 5, paddingVertical: 7, borderRadius: 17, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
+  zoomTrack: { width: 22, height: 102, alignSelf: 'center', alignItems: 'center' },
+  zoomLine: { position: 'absolute', top: ZOOM_THUMB_SIZE / 2, bottom: ZOOM_THUMB_SIZE / 2, width: 3, borderRadius: 2, backgroundColor: '#3b5860' },
+  zoomFill: { position: 'absolute', bottom: ZOOM_THUMB_SIZE / 2, width: 3, borderRadius: 2, backgroundColor: '#73cec3' },
+  zoomThumb: { position: 'absolute', left: 2, width: ZOOM_THUMB_SIZE, height: ZOOM_THUMB_SIZE, borderRadius: 9, backgroundColor: '#e5f4ed', borderWidth: 2, borderColor: '#83d3c7' },
   timelinePanel: { position: 'absolute', alignSelf: 'center', bottom: 14, zIndex: 10, paddingTop: 11, paddingBottom: 10, borderRadius: 20, backgroundColor: 'rgba(7, 15, 24, 0.90)', borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.22)' },
   timelinePanelIPhone: { borderBottomLeftRadius: 38, borderBottomRightRadius: 38 },
   timelinePanelLandscape: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 9, paddingBottom: 9 },
@@ -301,8 +347,16 @@ const s = StyleSheet.create({
   dateCopy: { flex: 1, minWidth: 0 },
   dateCopyLandscape: { flex: 0, width: '100%' },
   timelineActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timelineEyebrow: { color: '#77b8b7', fontSize: 9, fontWeight: '800', letterSpacing: 1.3 },
-  dragHint: { color: '#729191', fontWeight: '500', letterSpacing: 0.2 },
+  timelineEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  timelineEyebrow: { color: '#77b8b7', fontSize: 14, fontWeight: '800', letterSpacing: 1.3 },
+  tidalLockButton: { minHeight: 17, paddingHorizontal: 5, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.28)', flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
+  tidalLockButtonActive: { borderColor: 'rgba(115, 206, 195, 0.62)' },
+  tidalLockText: { color: '#96aaa9', fontSize: 7, fontWeight: '800', letterSpacing: 0.25 },
+  tidalLockTextActive: { color: '#a6e5dc' },
+  satelliteButton: { minHeight: 17, paddingHorizontal: 5, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.28)', flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
+  satelliteButtonActive: { borderColor: 'rgba(115, 206, 195, 0.62)' },
+  satelliteButtonText: { color: '#96aaa9', fontSize: 7, fontWeight: '800', letterSpacing: 0.25 },
+  satelliteButtonTextActive: { color: '#a6e5dc' },
   dateText: { color: '#f2f5f3', fontSize: 14, fontWeight: '700', marginTop: 2 },
   phaseSummaryName: { fontSize: 11, fontWeight: '700', marginTop: 2 },
   phaseSummaryPercent: { color: '#a3b7b5', fontWeight: '500' },
