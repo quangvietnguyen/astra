@@ -12,6 +12,24 @@
 - The app requests foreground location. `locationService.js` gets coordinates and a best-effort place name; the UI uses them to adjust/show the local view. The repo shows no app-operated backend and no precise location in custom Analytics event payloads.
 - `ios/Astra/PrivacyInfo.xcprivacy` currently has an empty collected-data array and tracking set to false. This manifest concerns Apple's privacy manifest requirements and SDK API declarations; it does not establish that Firebase Analytics collects nothing.
 
+## Recommended App Store Connect answers for this configuration
+
+For the first question, select **Yes, we collect data from this app**. Based on the app code and Firebase Analytics behavior, disclose these data types. Firebase says Analytics assigns an app-instance ID, derives general location from masked IP addresses, and automatically measures lifecycle events; the app also sends its own interaction events. Apple's category definitions and final handling answers remain the developer's responsibility. [Google Analytics disclosure guide](https://support.google.com/analytics/answer/10285841), [Apple data types](https://developer.apple.com/go/?id=info-1)
+
+| App Store Connect data type | Purpose | Linked to the user | Used for tracking | Why |
+| --- | --- | --- | --- | --- |
+| Location → Coarse Location | Analytics | Yes | No | Firebase Analytics derives general location from IP; custom events are associated with the Firebase app-instance ID. |
+| Identifiers → Device ID | Analytics | Yes | No | Firebase assigns an app-instance ID to measure users and associate events across an installation. Do not list it as an account/User ID; Astra has no accounts or custom user ID. |
+| Usage Data → Product Interaction | Analytics | Yes | No | Firebase lifecycle/session events plus Astra's Moon-size, satellite, date, and timeline visibility events. |
+| Usage Data → Other Usage Data | Analytics | Yes | No | Astra sets per-install preference properties for Moon size and satellite visibility. |
+| Diagnostics → Other Diagnostic Data | Analytics | Yes (conservative) | No | The installed Firebase GoogleDataTransport dependency reports event-cache/drop metadata. |
+
+For each row, mark **tracking No** unless the Firebase project is linked to ad measurement/targeted advertising or its data is shared for those purposes. No such use appears in the app repository, but Google Analytics project settings are outside this repo and must be checked. Apple defines tracking as linking app data with third-party data for targeted advertising/ad measurement or sharing with a data broker; Analytics collection by itself does not automatically mean Apple's tracking answer is Yes. [Apple tracking definition](https://developer.apple.com/app-store/user-privacy-and-data-use/)
+
+Do **not** select Contact Info, User ID, Precise Location, Purchases, Advertising Data, Crash Data, or Performance Data based on the Firebase/app behavior identified here. Astra's custom Analytics events do not transmit GPS coordinates or city names; the app uses optional foreground location for its local view and calls the iOS geocoder to get a place name. Revisit the location answer if the release build or chosen geocoding/analytics provider sends or retains precise location beyond Apple's real-time-processing exception.
+
+These answers are source-grounded but should be checked against the exact archive's SDK inventory and the Firebase project's Analytics/Google Ads/data-sharing settings before publishing the privacy label.
+
 ## Before answering the first App Privacy question
 
 1. Build the intended production archive and install that exact build on a physical iPhone/iPad.
