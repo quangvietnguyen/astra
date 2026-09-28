@@ -1,69 +1,69 @@
-# App information
+# App record and version fields
 
-## New app record
+Use these as proposed values, then confirm editable/account-specific fields in App Store Connect. Apple locks the bundle ID after a build is uploaded and requires the app name to be 30 characters or fewer. [App information reference](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information)
 
-| Field | Value |
+## Create the iOS app record
+
+| App Store Connect field | Repository value / recommendation |
 | --- | --- |
-| Platforms | iOS |
-| Name | Astra: Moon Phase 3D |
+| Platforms | iOS (the binary supports iPhone and iPad) |
+| Name | `Astra: Moon Phase 3D` (availability is not checked; <=30 characters) |
 | Primary language | English (U.S.) |
-| Bundle ID | `com.nqv.astra` |
-| SKU | `ASTRA-IOS-001` |
-| User access | Full Access |
+| Bundle ID | `com.nqv.astra` (must match the uploaded build) |
+| SKU | `ASTRA-IOS-001` (internal unique value; confirm it is unused in your account) |
+| User access | Full Access, unless the app should be restricted to particular users |
 
-The name is subject to availability in App Store Connect. The on-device display name remains `Astra`.
+The installed display name is `Astra`; the App Store listing name is independently proposed above. App version in `app.json` is `1.0.0`. EAS uses a remote app-version source and automatically increments production build numbers.
 
-## General information
+## App Information fields
 
-| Field | Recommended value |
+| Field | Proposed value |
 | --- | --- |
-| Subtitle | Live Lunar Sky & LRO |
-| Primary category | Education |
-| Secondary category | Reference |
-| Made for Kids | No |
-| Content Rights | Yes; confirm every bundled asset is licensed or otherwise permitted before selecting this answer |
-| License Agreement | Apple's standard EULA |
-| Age rating | Complete the questionnaire using `age-rating.md`; expected global result: 4+ |
+| Subtitle | `Live Lunar Sky & LRO` (<=30 characters) |
+| Primary category | Education (astronomy is an Apple example) |
+| Secondary category | Reference, optional |
+| Age rating | Answer the current questionnaire in [`age-rating.md`](age-rating.md); Apple calculates the result |
+| Made for Kids | No; Astra is not designed or marketed as a Kids Category app |
+| Content Rights | **Do not select until** [`asset-rights.md`](asset-rights.md) confirms rights for all bundled visual assets in every selected storefront |
+| License Agreement | Apple's standard EULA unless you provide your own reviewed agreement |
+| Copyright | `2026 [LEGAL COPYRIGHT OWNER]` — replace with the legal person/entity that owns the app |
 
-Education is the recommended primary category because Apple explicitly lists astronomy as an Education example. Reference is appropriate as the secondary category for the lunar metrics and calendar information.
+Category and Kids status are product/account decisions, not repository facts. Apple requires the rights holder to have rights to third-party content in each selected territory.
 
-## Pricing and availability
+## Version 1.0.0 fields
 
-| Field | Recommended value |
+Paste English (U.S.) values from [`metadata/en-US/`](metadata/en-US/). For convenience, the proposed URLs are below; **use only after publishing and testing the pages publicly**:
+
+| Field | Proposed value |
 | --- | --- |
-| Price | Free |
-| In-App Purchases | None |
-| Subscriptions | None |
-| Pre-order | No |
-| Distribution | Public App Store |
-| Territories | Worldwide, subject to the account holder's legal and regulatory decisions |
-| Release | Manual release after approval for version 1.0.0 |
-| Phased release | Not applicable to the first release |
+| Marketing URL (optional) | `https://quangvietnguyen.github.io/landings/astra/` |
+| Support URL (required) | `https://quangvietnguyen.github.io/support/astra/` |
+| Privacy Policy URL (required) | `https://quangvietnguyen.github.io/privacy/astra/` |
+| Privacy Choices URL (optional) | Leave blank unless you provide a public page for privacy requests/choices |
+| Copyright | `2026 [LEGAL COPYRIGHT OWNER]` |
+| What's New | Not applicable to the first version; for a later update, summarize changes in that release |
+| App Review contact | Use the real first/last name, monitored email, and reachable phone in [`review-notes.md`](review-notes.md) |
 
-## Version information
+The metadata files now contain these proposed URLs, but URL availability has not been verified from this workspace. Do not submit them until the pages have been deployed and load publicly without authentication.
 
-| Field | Value |
-| --- | --- |
-| Version | 1.0.0 |
-| Copyright | `2026 [LEGAL OWNER NAME REQUIRED]` |
-| Support URL | `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/support.html` |
-| Marketing URL | `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/` |
-| Privacy Policy URL | `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/privacy.html` |
-| Routing App Coverage File | Not applicable |
+## Price, territories, release
 
-Do not enter the URLs until GitHub Pages is enabled and each page is publicly reachable.
+Suggested initial setup (confirm in your account):
+
+- Price: Free; no in-app purchases, subscriptions, or paid features were found in this repository.
+- Availability: choose the countries/regions where you have distribution rights and are ready to provide support/compliance. Worldwide is only a suggestion, not a repo fact.
+- Pre-order: No recommendation for this initial release.
+- Version release: Manually release after approval if you want launch timing control; otherwise choose automatic release.
+- Phased release: optional for an update; not needed for an initial launch.
 
 ## Export compliance
 
-The repository sets `ITSAppUsesNonExemptEncryption` to `false`. The app uses platform and third-party HTTPS networking but does not implement proprietary or non-exempt encryption. On the current evidence, no export-compliance documentation is expected. The account holder remains responsible for confirming the final binary and answering Apple's questionnaire accurately.
+`app.json` sets `ITSAppUsesNonExemptEncryption` to `false`. Treat that as a project declaration, not legal confirmation. Inspect the final archive and answer Apple's export compliance prompts based on all encryption included/used by the app and its dependencies. Follow Apple's [export compliance guidance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance); if App Store Connect requests documentation, resolve it before submission.
 
-## Additional declarations
+## Other declarations to check
 
-- Advertising Identifier / ATT: not used by this build; Firebase Analytics is configured without advertising-ID support.
-- Sign-in: none.
-- In-app purchases: none.
-- Ads: none.
-- Regulated medical device: no.
-- App motion information: not applicable; Astra is not a visionOS app.
-- DSA status: account-holder decision required. See `required-inputs.md`.
-
+- Sign-in: none found; no demo account is needed.
+- Ads / in-app purchases / subscriptions: none found in app code/configuration.
+- Tracking: no advertising behavior is evident in app code, but verify the release archive and third-party SDK behavior before declaring.
+- Regulated medical device: not applicable based on current app functionality; it is a lunar visualization, not a medical tool.
+- DSA trader status: required account-holder declaration; see [`required-inputs.md`](required-inputs.md). A trader distributing in the EU has further public-contact requirements.

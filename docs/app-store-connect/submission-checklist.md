@@ -1,48 +1,38 @@
-# Submission checklist
+# App Store submission checklist
 
-## 1. Resolve blockers
+## A. Complete the record and compliance
 
-- [ ] Fix the undefined zodiac/altitude text in the phase card.
-- [ ] Complete the asset-rights audit.
-- [ ] Fill every item in `required-inputs.md`.
-- [ ] Confirm Firebase Analytics production data collection and GA4 retention settings.
-- [ ] Verify the privacy declaration against the archived release binary's privacy report.
+- [ ] Create an iOS app record with bundle ID `com.nqv.astra`, primary language English (U.S.), and unique SKU `ASTRA-IOS-001`.
+- [ ] Confirm listing name availability, category, copyright owner, price, and territories.
+- [ ] Complete the age-rating questionnaire; review Apple's calculated result.
+- [ ] Finish the image/texture rights audit before answering Content Rights.
+- [ ] Complete the account holder's DSA trader-status declaration.
+- [ ] Publish and verify public privacy and support pages and optional marketing page. Replace the old URLs in `metadata/en-US/*.txt` with the final verified URLs.
+- [ ] Complete App Privacy against the exact release archive and all third-party SDK collection. Keep the privacy policy and App Store labels consistent.
+- [ ] Confirm export-compliance answers against the archived binary and its dependencies.
 
-## 2. Publish required URLs
+## B. Build and verify the iOS release candidate
 
-- [ ] Enable GitHub Pages from `docs/` or publish the HTML files elsewhere.
-- [ ] Verify marketing, support, and privacy URLs without authentication.
-- [ ] Confirm the support page shows a monitored contact email.
+The repo's production command is `pnpm run eas:build:ios:prod`. It starts an EAS production build and increments the remote build number; it does **not** submit by itself. Avoid the script ending `:submit` unless you explicitly intend it to auto-submit. Production credentials and App Store Connect configuration are involved; do not print or commit private key files.
 
-## 3. Create the App Store Connect record
+- [ ] Resolve Firebase Analytics configuration deliberately. The checked-in config has no `GoogleService-Info.plist` / `ios.googleServicesFile`, and the app has previously reported `NativeRNFBTurboApp is not registered`. Decide whether analytics belongs in this release; verify initialization and privacy reporting in the exact production archive.
+- [ ] Build with the production profile, install the resulting archive through TestFlight, and inspect on physical iPhone and iPad.
+- [ ] Verify cold launch and resume; location allowed and denied; current date and timeline drag; TODAY reset; zoom; TIDAL LOCK; SATELLITE; expand/collapse; iPad portrait and landscape.
+- [ ] Confirm no native module errors, crashes, debug UI, placeholder/undefined text, or clipped interface.
+- [ ] Check export-compliance questions shown after the build is uploaded; resolve any documentation request.
+- [ ] Verify no private location appears in screenshots or analytics payloads.
 
-- [ ] Create iOS app with bundle ID `com.nqv.astra` and SKU `ASTRA-IOS-001`.
-- [ ] Add English (U.S.) name, subtitle, categories, copyright, and URLs.
-- [ ] Complete Content Rights and the age-rating questionnaire.
-- [ ] Complete DSA trader status and territory availability.
-- [ ] Set price to Free and select manual release.
+## C. Upload assets and version metadata
 
-## 4. Privacy and compliance
-
-- [ ] Enter and publish the App Privacy answers from `app-privacy.md`.
-- [ ] Confirm tracking is No and IDFA is absent from the archived binary.
-- [ ] Confirm `ITSAppUsesNonExemptEncryption` is false in the archive.
-- [ ] Complete any account-level tax, banking, or agreements shown by App Store Connect.
-
-## 5. Build and test
-
-- [ ] Build a production iOS binary with the production EAS environment.
-- [ ] Confirm `GOOGLE_SERVICE_INFO_PLIST` is available to the build.
-- [ ] Test first launch, location allowed, location denied, date changes, Moon sizing, orbiter toggle, HUD show/hide, dynamic icon, background/foreground, iPhone, and iPad.
-- [ ] Confirm there are no debug menus, placeholder strings, crashes, or clipped controls.
-- [ ] Upload the build and complete TestFlight smoke testing.
-
-## 6. Final product page
-
-- [ ] Paste metadata from `metadata/en-US/` and recheck character limits.
-- [ ] Capture final screenshots from the signed build and replace preview assets.
+- [ ] Upload final native screenshots for iPhone and iPad; the repository previews are mockups and are not store screenshots.
+- [ ] Paste English (U.S.) metadata from `metadata/en-US/` and review the product-page preview and text limits.
+- [ ] Enter a valid copyright value and published URLs.
 - [ ] Add App Review contact details and notes from `review-notes.md`.
-- [ ] Select the uploaded build.
-- [ ] Review the product-page preview and privacy-label preview.
-- [ ] Submit manually only after all checklist items pass.
+- [ ] Select the production build for version `1.0.0`.
+- [ ] Review app privacy label preview, rating, territories, and price.
 
+## D. Review and release
+
+- [ ] In App Store Connect, click **Add for Review**, inspect the draft submission, then click **Submit for Review** when ready. See [Apple's submission flow](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app).
+- [ ] Respond to App Review questions or requests.
+- [ ] After approval, manually release if that option was selected; otherwise Apple releases according to the selected setting.

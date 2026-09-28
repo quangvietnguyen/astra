@@ -1,25 +1,24 @@
-# Age-rating questionnaire
+# Age-rating questionnaire guide
 
-Recommended answers for the current build:
+Answer the current App Store Connect age-rating form for the submitted build. The questionnaire controls the final rating; Apple calculates global and regional results. Its current flow asks about in-app controls/capabilities and the frequency of content types. [Apple: Set an app age rating](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating)
 
-| Section | Descriptor | Answer |
-| --- | --- | --- |
-| In-App Controls | Parental controls | No |
-| In-App Controls | Age assurance | No |
-| Capabilities | Unrestricted web access | No |
-| Capabilities | User-generated content | No |
-| Capabilities | Messaging and chat | No |
-| Capabilities | Advertising | No |
-| Mature Themes | Profanity or crude humor | None |
-| Mature Themes | Horror or fear themes | None |
-| Mature Themes | Alcohol, tobacco, or drug references | None |
-| Medical or Wellness | Medical or treatment information | None |
-| Medical or Wellness | Health or wellness topics | None |
-| Sexuality or Nudity | All descriptors | None |
-| Violence | All descriptors | None |
-| Chance-Based Activities | Gambling, simulated gambling, contests, and loot boxes | None |
+Based on the current Astra code and product, these are the expected answers. Recheck if content, web views, user features, or monetization changes:
 
-Expected global rating: **4+**. Apple calculates the final result, and regional ratings may differ.
+| Questionnaire item | Suggested answer |
+| --- | --- |
+| Parental controls | No |
+| Age assurance | No |
+| Unrestricted web access | No (no general-purpose browser found) |
+| User-generated content | No |
+| Messaging or chat | No |
+| Advertising | No (no ad integration found) |
+| Profanity or crude humor | None |
+| Horror or fear themes | None |
+| Alcohol, tobacco, or drug references | None |
+| Medical or treatment information | None |
+| Health or wellness topics | None |
+| Sexual content or nudity | None |
+| Violence | None |
+| Gambling, simulated gambling, contests, or loot boxes | None |
 
-Do not select “Made for Kids.” Astra is a general-audience educational utility and does not implement the additional Kids category requirements.
-
+The expected result is the lowest applicable rating, but do not enter a guessed rating: App Store Connect calculates it from the questionnaire and may assign regional ratings. Do not mark the app “Made for Kids”; it is a general-audience astronomy utility, not a Kids Category app.

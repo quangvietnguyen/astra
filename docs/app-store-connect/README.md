@@ -1,47 +1,41 @@
-# Astra App Store Connect submission package
+# Astra App Store Connect release packet
 
-This directory contains the paste-ready English (U.S.) metadata, compliance answers, review notes, public policy pages, and screenshot plan for Astra 1.0.0.
+This packet maps the current Astra repository to the App Store Connect fields for an iOS release. It is a preparation guide; no build has been uploaded and no release has been submitted.
 
-## Package contents
+## Ready-to-use metadata
 
-- `metadata/en-US/`: App Store product-page text.
-- `app-information.md`: App record, category, pricing, rights, encryption, and release settings.
-- `app-privacy.md`: App Privacy questionnaire answers derived from the current code and Firebase Analytics configuration.
-- `age-rating.md`: Recommended age-rating questionnaire answers.
-- `review-notes.md`: Paste-ready App Review notes and testing path.
-- `asset-rights.md`: Content-rights audit that must be completed before submission.
-- `screenshots/`: Required sizes, shot list, and preview captures.
-- `privacy.html`, `support.html`, `index.html`: Host-ready pages for the required URLs.
-- `required-inputs.md`: Account-holder details and decisions that cannot be inferred from source code.
-- `submission-checklist.md`: Ordered App Store Connect workflow.
+The English (U.S.) product-page text is in [`metadata/en-US/`](metadata/en-US/). Current suggestions: **Astra: Moon Phase 3D**, subtitle **Live Lunar Sky & LRO**, free download, no in-app purchases, and a manual release after approval. Names, categories, price, and distribution remain account-holder decisions. Check all limits and product accuracy before pasting.
 
-## Proposed public URLs
+## Do these before creating the submission
 
-If GitHub Pages is enabled from the repository's `docs/` directory, use:
+1. Complete [`required-inputs.md`](required-inputs.md), especially legal owner, reviewer contact, rights to image/texture assets, distribution countries, and EU trader status.
+2. Publish working public HTTPS marketing, support, and privacy pages, then verify them without signing in. The URLs in the metadata files are **not verified as live**. Use the intended pages `https://quangvietnguyen.github.io/landings/astra/`, `https://quangvietnguyen.github.io/support/astra/`, and `https://quangvietnguyen.github.io/privacy/astra/` only after those pages have actually been published and checked.
+3. Produce and inspect a production archive. The repo has React Native Firebase Analytics code, but no checked-in `GoogleService-Info.plist` or `ios.googleServicesFile` setting was found. A previous runtime also reported `NativeRNFBTurboApp is not registered`. This does not establish what a new archive collects. Resolve the native Firebase setup and test analytics in the exact archive, then complete [`app-privacy.md`](app-privacy.md) from the archive's privacy report and SDK disclosures.
+4. Capture genuine screenshots from the tested iOS build for iPhone and iPad. The existing `screenshots/previews/` images are composition mockups, not submission screenshots.
+5. Complete the content-rights audit in [`asset-rights.md`](asset-rights.md). Do not answer Content Rights until every bundled asset is cleared for the countries selected.
 
-- Marketing: `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/`
-- Support: `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/support.html`
-- Privacy: `https://quangvietnguyen.github.io/expo-globle-screen/app-store-connect/privacy.html`
+## What's in this packet
 
-Verify all three URLs in a private browser window before entering them in App Store Connect. They are not live merely because these files exist in the repository.
+- [`app-information.md`](app-information.md): app record, categories, price, rights, and release fields.
+- [`metadata/en-US/`](metadata/en-US/): proposed U.S. English text.
+- [`app-privacy.md`](app-privacy.md): privacy decision guide and release-build verification requirements.
+- [`age-rating.md`](age-rating.md): recommended content questionnaire answers to verify against the final app.
+- [`review-notes.md`](review-notes.md): current review instructions and reviewer contact placeholders.
+- [`screenshots/README.md`](screenshots/README.md): capture requirements and shot plan.
+- [`required-inputs.md`](required-inputs.md): facts the repository cannot supply.
+- [`asset-rights.md`](asset-rights.md): outstanding image and texture provenance.
+- [`submission-checklist.md`](submission-checklist.md): build, upload, TestFlight, and submission steps.
 
-## Current release status
+## Suggested release sequence
 
-The metadata and policy copy are ready for review. Submission is not yet ready because:
+Create an iOS app record for bundle ID `com.nqv.astra`, finish the legal/privacy/assets fields, upload a production build to App Store Connect, verify it in TestFlight, complete the version page and screenshots, then use **Add for Review** and **Submit for Review** when everything is ready. Choose manual release if you want to decide when an approved version becomes available. Apple requires the build and required metadata before submission; see [Apple's submit flow](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app).
 
-1. The legal copyright owner and App Review phone number are missing.
-2. The bundled image/texture licenses are not documented in the repository.
-3. Final screenshots must be captured from the signed release build.
-4. The current UI preview shows `undefined • undefined° Altitude` in the phase card.
-5. The account holder must declare DSA trader status and confirm distribution territories.
-
-## Authoritative references
+## Apple references
 
 - [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information)
-- [Platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information)
-- [Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
-- [Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
-- [Age ratings](https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions)
+- [Version metadata and field limits](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information/)
+- [Screenshot upload and specifications](https://developer.apple.com/help/app-store-connect/manage-app-information/upload-app-previews-and-screenshots/)
+- [App Privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
+- [Age rating questionnaire](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating)
 - [Export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)
 - [EU Digital Services Act trader requirements](https://developer.apple.com/help/app-store-connect/manage-compliance-information/manage-european-union-digital-services-act-trader-requirements)
-

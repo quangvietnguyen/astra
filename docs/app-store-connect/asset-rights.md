@@ -9,13 +9,15 @@ App Store Connect requires the developer to hold the necessary rights for third-
 - `assets/stars.jpeg`
 - `assets/stars-milky-way.jpeg`
 - `assets/earth*.jpeg`
-- `assets/cloud.*`
+- `assets/cloud.jpeg`
+- `assets/cloud.png`
 - `assets/jupiter.jpeg`
 - `assets/mars.jpeg`
 - `assets/saturn.jpeg`
 - `assets/saturn-ring.png`
 - `assets/sun.jpg`
-- App icon and alternate lunar-phase icons
+- `assets/adaptive-icon.png`, `assets/icon.png`, and `assets/favicon.png`
+- Every alternate lunar-phase icon in `assets/icons/`
 
 For each asset, record:
 
@@ -32,4 +34,3 @@ The app uses the factual name “NASA LRO” and presents an original 3D spacecr
 ## App Store Connect answer
 
 Because the app contains third-party or public-domain visual material, answer **Yes** to the Content Rights question only after completing this audit and confirming the right to distribute every asset in each selected territory.
-
