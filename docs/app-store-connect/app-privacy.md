@@ -1,12 +1,14 @@
 # App Privacy: release-build decision worksheet
 
-**Do not copy the old fixed answers in this file into App Store Connect without checking the exact release archive.** Apple requires disclosures for Astra and third-party partners, and holds the developer responsible for keeping them accurate. A `PrivacyInfo.xcprivacy` manifest is not a substitute for the App Store Connect privacy questionnaire. [Apple: Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
+**Finding: Astra is configured to collect Analytics data. Do not answer “No, we do not collect data” for the current iOS configuration.** The repository has no built `.ipa`/`.xcarchive` to inspect, so this is a source/configuration finding rather than a packet capture from a particular release build. Apple requires disclosures for Astra and third-party partners. A `PrivacyInfo.xcprivacy` manifest is not a substitute for the App Store Connect privacy questionnaire. [Apple: Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
 
 ## Evidence from this repository
 
-- `@react-native-firebase/analytics` and `@react-native-firebase/app` are dependencies, and `src/services/analyticsService.js` attempts to initialize Firebase Analytics when the native module is present.
-- The logged events include Moon-size selection, satellite visibility, date exploration, and timeline visibility. Their event payloads do not include coordinates, city, account name, or a developer-defined user ID.
-- No `GoogleService-Info.plist` or `ios.googleServicesFile` setting was found in the checked-in project. A previous app run reported `NativeRNFBTurboApp is not registered`; the graceful guard then disables analytics in that binary. Neither fact proves what EAS will package in a future production archive.
+- `@react-native-firebase/analytics` and `@react-native-firebase/app` are dependencies and are present in the iOS native dependency lockfile. The iOS `AppDelegate` calls `FirebaseApp.configure()`.
+- The Xcode project includes the root `GoogleService-Info.plist`; that local file is ignored by Git, but `.easignore` explicitly re-includes it for EAS upload. The file identifies bundle ID `com.nqv.astra` and has an Analytics-related flag set false.
+- **That false flag does not establish Analytics is disabled.** The resolved Firebase Apple SDK is 12.19.2. Its current collection controls are `IS_MEASUREMENT_ENABLED`, `FIREBASE_ANALYTICS_COLLECTION_ENABLED`, and `FIREBASE_ANALYTICS_COLLECTION_DEACTIVATED`; the local file has none of those keys. The iOS app Info.plist has no Firebase collection override, the project has no `firebase.json`, and the app code does not call `setAnalyticsCollectionEnabled(false)`. Firebase's iOS SDK defaults data collection to enabled when no disabling value is supplied. See [Firebase collection controls](https://firebase.google.com/docs/analytics/ios/configure-data-collection) and the [Firebase SDK configuration logic](https://github.com/firebase/firebase-ios-sdk/blob/main/FirebaseCore/Sources/FIRApp.m).
+- The app code logs custom events for Moon-size selection, satellite visibility, date exploration, and timeline visibility. Payloads include user preferences, selected phase, date-change direction/source, and coarse date-offset values. They do not include GPS coordinates, city, account name, or a developer-defined user ID.
+- A previous run reported `NativeRNFBTurboApp is not registered`; the JS wrapper skips custom events when the native module is missing. That error can mean that particular development runtime lacks the native module. It does not undo the native Firebase linkage in the iOS project or prove the production archive disables Firebase's own collection.
 - The app requests foreground location. `locationService.js` gets coordinates and a best-effort place name; the UI uses them to adjust/show the local view. The repo shows no app-operated backend and no precise location in custom Analytics event payloads.
 - `ios/Astra/PrivacyInfo.xcprivacy` currently has an empty collected-data array and tracking set to false. This manifest concerns Apple's privacy manifest requirements and SDK API declarations; it does not establish that Firebase Analytics collects nothing.
 
@@ -25,7 +27,7 @@
 If these behaviors remain true in the release build, the policy should explain:
 
 - Foreground location is optional. With permission, Astra reads latitude, longitude, altitude, accuracy, and a best-effort place name for the local lunar view and on-screen location status. The app remains usable without it.
-- Custom Analytics events contain UI choices and date/phase exploration, not precise coordinates or city names. Firebase can have automatic collection separate from these custom events; see the verification steps above.
+- Custom Analytics events contain UI choices and date/phase exploration, not precise coordinates or city names. Firebase can have automatic collection separate from these custom events; disclose the actual SDK categories after checking the archive and vendor labels.
 - There is no account sign-in, in-app purchase, subscription, advertising, or developer-operated account backend in the current app.
 
 The existing draft privacy page describes Firebase collection. Keep that language only if Analytics is in the archive and the configured behavior matches it. The no-collection alternative requires updating the policy too.
