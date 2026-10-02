@@ -107,6 +107,7 @@ export default function App() {
     date.setDate(date.getDate() + displayedOffset);
     return date;
   }, [clockTime, displayedOffset]);
+  const shortenVietnameseMonth = (label) => language === 'vi' ? label.replace(/tháng/gi, 'thg') : label;
   const lat = location?.latitude ?? 0;
   const lon = location?.longitude ?? 0;
   const astronomy = React.useMemo(() => getMoonAstronomy(displayedDate, lat, lon), [displayedDate, lat, lon]);
@@ -215,8 +216,8 @@ export default function App() {
     return {
       day: date.getDate(),
       monthStart,
-      shortLabel: date.toLocaleDateString(localeTag, { [monthStart ? 'month' : 'weekday']: 'short' }).toUpperCase(),
-      fullLabel: date.toLocaleDateString(localeTag, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      shortLabel: shortenVietnameseMonth(date.toLocaleDateString(localeTag, { [monthStart ? 'month' : 'weekday']: 'short' })).toUpperCase(),
+      fullLabel: shortenVietnameseMonth(date.toLocaleDateString(localeTag, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })),
     };
   }), [clockTime, dayOffset, localeTag]);
   const timelineCells = React.useMemo(() => timelineDates.map((date, index) => {
