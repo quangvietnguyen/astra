@@ -1,13 +1,15 @@
 import './src/utils/patchGL';
 import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
+import { AppState, StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
 import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trackOrbiterVisibility } from './src/services/analyticsService';
 import { getMoonAstronomy, getLunarEclipseEvent, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 import moonConfig from './src/data/moonConfig.json';
+import { getLocales, useLocales } from 'expo-localization';
+import { getLocaleTag, getPreferredLanguage, getTidalLockHint, translate, translatePhase } from './src/i18n';
 
 const THUMB_SIZE = 54;
 const ZOOM_THUMB_SIZE = 18;
@@ -16,6 +18,25 @@ const TIMELINE_RADIUS = 90;
 const TIMELINE_DAYS = Array.from({ length: TIMELINE_RADIUS * 2 + 1 }, (_, index) => index - TIMELINE_RADIUS);
 
 export default function App() {
+  const locales = useLocales();
+  const [, refreshOnForeground] = React.useReducer((count) => count + 1, 0);
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') refreshOnForeground();
+    });
+    return () => subscription.remove();
+  }, []);
+  let currentLocales = locales;
+  try {
+    // Re-read the native setting on render as well as listening for Expo's
+    // locale event, which may arrive while the app is suspended.
+    currentLocales = getLocales();
+  } catch {
+    // Keep the last locale snapshot; unsupported settings resolve to English.
+  }
+  const language = getPreferredLanguage(currentLocales);
+  const t = (key) => translate(language, key);
+  const localeTag = getLocaleTag(language);
   const { width, height } = useWindowDimensions();
   const isIPad = Platform.OS === 'ios' && Platform.isPad;
   const isIPhone = Platform.OS === 'ios' && !isIPad;
@@ -185,7 +206,8 @@ export default function App() {
   zoomPhaseRef.current = astronomy.phaseName;
   const phaseEmoji = eclipseAppearance ? eclipseAppearance.emoji : isMidAutumn ? moonConfig.appearance.midAutumn.emoji : astronomy.phaseEmoji;
   const accent = eclipseAppearance ? eclipseAppearance.accent : isMidAutumn ? moonConfig.appearance.midAutumn.accent : '#e8d19a';
-  const hemisphere = location ? (astronomy.isSouthernHemisphere ? 'Southern' : 'Northern') : 'Equatorial';
+  const hemisphere = location ? (astronomy.isSouthernHemisphere ? t('southern') : t('northern')) : t('equatorial');
+  const localizedPhaseName = translatePhase(language, phaseName);
   const timelineDates = React.useMemo(() => TIMELINE_DAYS.map((delta) => {
     const date = new Date(clockTime);
     date.setDate(date.getDate() + dayOffset + delta);
@@ -193,10 +215,10 @@ export default function App() {
     return {
       day: date.getDate(),
       monthStart,
-      shortLabel: date.toLocaleDateString(undefined, { [monthStart ? 'month' : 'weekday']: 'short' }).toUpperCase(),
-      fullLabel: date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      shortLabel: date.toLocaleDateString(localeTag, { [monthStart ? 'month' : 'weekday']: 'short' }).toUpperCase(),
+      fullLabel: date.toLocaleDateString(localeTag, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
     };
-  }), [clockTime, dayOffset]);
+  }), [clockTime, dayOffset, localeTag]);
   const timelineCells = React.useMemo(() => timelineDates.map((date, index) => {
     const days = TIMELINE_DAYS[index];
     return <TouchableOpacity key={days} style={s.dayCell} onPress={() => selectTimelineDayRef.current(days)} accessibilityRole="button" accessibilityLabel={date.fullLabel}>
@@ -216,7 +238,7 @@ export default function App() {
           <View style={s.headerCopy} pointerEvents="none">
             <Text style={s.brand}>ASTRA <Text style={s.brandSub}>/ LUNAR OBSERVER</Text></Text>
             {location && <Text style={s.location} numberOfLines={1}><Text style={s.locationDot}>●  </Text>{`${formatCoord(location.latitude, true)}, ${formatCoord(location.longitude, false)}${location.city ? ` (${location.city})` : ''}`}</Text>}
-            {isLoadingLocation && <Text style={s.location}>Locating…</Text>}
+            {isLoadingLocation && <Text style={s.location}>{t('locating')}</Text>}
           </View>
         </View>
 
@@ -229,7 +251,7 @@ export default function App() {
             <View style={s.zoomTrack} onLayout={(event) => { const next = event.nativeEvent.layout.height; if (next !== zoomTrackHeightRef.current) { zoomTrackHeightRef.current = next; setZoomTrackHeight(next); } }}>
               <View style={s.zoomLine} />
               <View style={[s.zoomFill, { height: (moonScale - 0.6) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} />
-              <View style={[s.zoomThumb, { top: (1.6 - moonScale) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Moon zoom" accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)} percent` }} accessibilityActions={[{ name: 'increment', label: 'Zoom in' }, { name: 'decrement', label: 'Zoom out' }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
+              <View style={[s.zoomThumb, { top: (1.6 - moonScale) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={t('moonZoom')} accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)}%` }} accessibilityActions={[{ name: 'increment', label: t('zoomIn') }, { name: 'decrement', label: t('zoomOut') }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
             </View>
           </Animated.View>
         </View>
@@ -246,35 +268,35 @@ export default function App() {
             <View style={[s.timelineHeader, isIPadLandscape && s.timelineHeaderLandscape]}>
               <View style={[s.dateCopy, isIPadLandscape && s.dateCopyLandscape]}>
                 <View style={s.timelineEyebrowRow}>
-                  <Text style={s.timelineEyebrow}>TIMELINE</Text>
+                  <Text style={s.timelineEyebrow}>{t('timeline')}</Text>
                   <TouchableOpacity
                     onPress={() => setTidalLocked((locked) => !locked)}
                     style={[s.tidalLockButton, tidalLocked && s.tidalLockButtonActive]}
                     hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
                     accessibilityRole="button"
-                    accessibilityLabel={`Tidal lock ${tidalLocked ? 'on' : 'off'}`}
+                    accessibilityLabel={`${t('tidalLock')} ${t(tidalLocked ? 'on' : 'off')}`}
                     accessibilityState={{ selected: tidalLocked }}
-                    accessibilityHint="Stops the Moon's rotation while the light source continues to follow the selected date"
+                    accessibilityHint={getTidalLockHint(language)}
                   >
-                    <Text style={[s.tidalLockText, tidalLocked && s.tidalLockTextActive]}>TIDAL LOCK</Text>
+                    <Text style={[s.tidalLockText, tidalLocked && s.tidalLockTextActive]}>{t('tidalLock')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => toggleOrbiter(!showOrbiter)}
                     style={[s.satelliteButton, showOrbiter && s.satelliteButtonActive]}
                     hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
                     accessibilityRole="button"
-                    accessibilityLabel={`Satellite ${showOrbiter ? 'on' : 'off'}`}
+                    accessibilityLabel={`${t('satellite')} ${t(showOrbiter ? 'on' : 'off')}`}
                     accessibilityState={{ selected: showOrbiter }}
                   >
-                    <Text style={[s.satelliteButtonText, showOrbiter && s.satelliteButtonTextActive]}>SATELLITE</Text>
+                    <Text style={[s.satelliteButtonText, showOrbiter && s.satelliteButtonTextActive]}>{t('satellite')}</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={s.dateText} numberOfLines={1}>{displayedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
-                <Text style={[s.phaseSummaryName, { color: accent }]} numberOfLines={1}>{phaseName} <Text style={s.phaseSummaryPercent}>· {astronomy.illuminationPercent}% lit</Text></Text>
+                <Text style={s.dateText} numberOfLines={1}>{displayedDate.toLocaleDateString(localeTag, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                <Text style={[s.phaseSummaryName, { color: accent }]} numberOfLines={1}>{localizedPhaseName} <Text style={s.phaseSummaryPercent}>· {astronomy.illuminationPercent}%</Text></Text>
               </View>
               <View style={s.timelineActions}>
-                {displayedOffset !== 0 && <TouchableOpacity onPress={() => { scrollCommitted.current = true; centerTimeline(); previewDaysRef.current = 0; setDragDays(0); setOffset(0, 'today'); }} style={s.todayButton} accessibilityRole="button" accessibilityLabel="Return to today"><Text style={s.todayText}>TODAY</Text></TouchableOpacity>}
-                <TouchableOpacity onPress={() => toggleTimeline(false)} style={s.hideButton} accessibilityRole="button" accessibilityLabel="Collapse lunar timeline"><Text style={[s.collapsedArrow, s.downArrow]}>⌃</Text></TouchableOpacity>
+                {displayedOffset !== 0 && <TouchableOpacity onPress={() => { scrollCommitted.current = true; centerTimeline(); previewDaysRef.current = 0; setDragDays(0); setOffset(0, 'today'); }} style={s.todayButton} accessibilityRole="button" accessibilityLabel={t('returnToday')}><Text style={s.todayText}>{t('today')}</Text></TouchableOpacity>}
+                <TouchableOpacity onPress={() => toggleTimeline(false)} style={s.hideButton} accessibilityRole="button" accessibilityLabel={t('collapseTimeline')}><Text style={[s.collapsedArrow, s.downArrow]}>⌃</Text></TouchableOpacity>
               </View>
             </View>
             <View
@@ -300,13 +322,13 @@ export default function App() {
                 scrollEventThrottle={16}
                 onMomentumScrollEnd={commitTimeline}
                 onScrollEndDrag={(event) => { if (Math.abs(event.nativeEvent.velocity?.x || 0) < 0.05) commitTimeline(event); }}
-                accessibilityLabel="Lunar date ruler. Swipe to travel through dates"
+                accessibilityLabel={t('lunarRuler')}
               >
                 {timelineCells}
               </ScrollView>
               <View pointerEvents="none" style={[s.thumb, { left: (trackWidth - THUMB_SIZE) / 2, borderColor: accent }]}><Text style={s.thumbEmoji}>{phaseEmoji}</Text></View>
             </View>
-            <View style={[s.timelineDetails, isIPadLandscape && s.timelineDetailsLandscape]}><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>AGE <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>DISTANCE <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString()} km</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>ANGLE <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>VIEW <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
+            <View style={[s.timelineDetails, isIPadLandscape && s.timelineDetailsLandscape]}><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('age')} <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('distance')} <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString(localeTag)} km</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('angle')} <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('view')} <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
         </Animated.View>
         <Animated.View
           style={[s.collapsedOverlay, { opacity: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }] }]}
@@ -314,7 +336,7 @@ export default function App() {
           accessibilityElementsHidden={showTimeline}
           importantForAccessibility={showTimeline ? 'no-hide-descendants' : 'auto'}
         >
-          <TouchableOpacity style={[s.collapsedTimeline, isIPad && s.collapsedTimelineIPad]} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`Expand lunar timeline. ${phaseName}, ${astronomy.illuminationPercent} percent illuminated`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
+          <TouchableOpacity style={[s.collapsedTimeline, isIPad && s.collapsedTimelineIPad]} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`${t('expandTimeline')}. ${localizedPhaseName}, ${astronomy.illuminationPercent}%`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
         </Animated.View>
       </ImageBackground>
     </View>
