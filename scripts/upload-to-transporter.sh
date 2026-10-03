@@ -35,6 +35,7 @@ if [ -f "$ASC_KEY_PATH" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ]; th
   xcrun altool --upload-app \
     -f "$IPA_PATH" \
     -t ios \
+    --apple-id 6814516039 \
     --apiKey "$ASC_KEY_ID" \
     --apiIssuer "$ASC_ISSUER_ID" \
     --p8-file-path "$ASC_KEY_PATH" \
@@ -44,6 +45,7 @@ elif [ -n "$APP_SPECIFIC_PWD" ]; then
   xcrun altool --upload-app \
     -f "$IPA_PATH" \
     -t ios \
+    --apple-id 6814516039 \
     -u "$APPLE_ID" \
     -p "$APP_SPECIFIC_PWD" \
     --show-progress
