@@ -1,6 +1,7 @@
 import * as React from 'react';
+import { AppState } from 'react-native';
 import { TextureLoader, THREE } from 'expo-three';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber/native';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
 import moonConfig from '../data/moonConfig.json';
 import moonImg from '../../assets/moon.jpeg';
 import LunarOrbiter from './LunarOrbiter';
@@ -8,6 +9,36 @@ import LunarOrbiter from './LunarOrbiter';
 const BASE_MOON_RADIUS = 2.05;
 const MOTION_SPEED = 9;
 const PHASE_SPEED = 7;
+const TARGET_FRAME_INTERVAL_MS = 1000 / 30;
+
+function MoonFrameScheduler() {
+  const invalidate = useThree((state) => state.invalidate);
+
+  React.useEffect(() => {
+    let timer;
+    const start = () => {
+      if (timer) return;
+      invalidate();
+      timer = setInterval(invalidate, TARGET_FRAME_INTERVAL_MS);
+    };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = undefined;
+    };
+
+    if (AppState.currentState === 'active') start();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') start();
+      else stop();
+    });
+    return () => {
+      stop();
+      subscription.remove();
+    };
+  }, [invalidate]);
+
+  return null;
+}
 
 const blend = (delta, speed) => 1 - Math.exp(-speed * Math.min(delta, 0.1));
 const blendLight = (light, intensity, color, amount) => {
@@ -323,7 +354,13 @@ export default function Moon({
     : isMidAutumn ? moonConfig.appearance.midAutumn : moonConfig.appearance.regular;
 
   return (
-    <Canvas camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}>
+    <Canvas
+      frameloop="demand"
+      dpr={[1, 1.5]}
+      gl={{ antialias: false, powerPreference: 'low-power' }}
+      camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}
+    >
+      <MoonFrameScheduler />
       <SmoothMoonLighting sunPos={sunPos} appearance={appearance} />
 
       <React.Suspense
