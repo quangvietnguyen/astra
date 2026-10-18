@@ -51,6 +51,8 @@
 	<string>Astra does not use motion or fitness data. This declaration is required by the location library used to calculate your local sky.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Astra uses your location to compute accurate topocentric Moon phase, orientation, and astronomical solar lighting for your sky.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

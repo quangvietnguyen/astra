@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useFrame } from '@react-three/fiber/native';
 import { THREE } from 'expo-three';
+import { batchStaticOrbiterMeshes } from '../utils/batchStaticOrbiterMeshes';
 
 // 3D Orbit trajectory helper: sweeps gracefully from behind the Moon (z < 0) to front (z > 0)
 function getOrbitPosition(theta, cx, cy, cz, R, alpha, beta) {
@@ -36,6 +37,15 @@ export default function LunarOrbiter({
   const solarGimbalRef = React.useRef();
   const dishGimbalRef = React.useRef();
   const beaconRef = React.useRef();
+
+  React.useLayoutEffect(() => {
+    const gimbals = [solarGimbalRef.current, dishGimbalRef.current];
+    const cleanups = [
+      batchStaticOrbiterMeshes(orbiterRef.current, gimbals),
+      ...gimbals.map((gimbal) => batchStaticOrbiterMeshes(gimbal)),
+    ];
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, []);
 
   const effectiveScale = orbiterScale !== 1.0 ? orbiterScale : scale;
 
