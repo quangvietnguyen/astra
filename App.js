@@ -59,8 +59,8 @@ export default function App() {
   const [moonScale, setMoonScale] = React.useState(1);
   const [showTimeline, setShowTimeline] = React.useState(true);
   const timelineAnimation = React.useRef(new Animated.Value(1)).current;
-  const [showOrbiter, setShowOrbiter] = React.useState(true);
-  const [tidalLocked, setTidalLocked] = React.useState(false);
+  const [showOrbiter, setShowOrbiter] = React.useState(false);
+  const [tidalLocked, setTidalLocked] = React.useState(true);
   const [clockTime, setClockTime] = React.useState(() => new Date());
   const moonScaleRef = React.useRef(1);
   const zoomStartRef = React.useRef(1);

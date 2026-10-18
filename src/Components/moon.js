@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { TextureLoader, THREE } from 'expo-three';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
 import moonConfig from '../data/moonConfig.json';
@@ -9,36 +9,6 @@ import LunarOrbiter from './LunarOrbiter';
 const BASE_MOON_RADIUS = 2.05;
 const MOTION_SPEED = 9;
 const PHASE_SPEED = 7;
-const TARGET_FRAME_INTERVAL_MS = 1000 / 30;
-
-function MoonFrameScheduler() {
-  const invalidate = useThree((state) => state.invalidate);
-
-  React.useEffect(() => {
-    let timer;
-    const start = () => {
-      if (timer) return;
-      invalidate();
-      timer = setInterval(invalidate, TARGET_FRAME_INTERVAL_MS);
-    };
-    const stop = () => {
-      if (timer) clearInterval(timer);
-      timer = undefined;
-    };
-
-    if (AppState.currentState === 'active') start();
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') start();
-      else stop();
-    });
-    return () => {
-      stop();
-      subscription.remove();
-    };
-  }, [invalidate]);
-
-  return null;
-}
 
 const blend = (delta, speed) => 1 - Math.exp(-speed * Math.min(delta, 0.1));
 const blendLight = (light, intensity, color, amount) => {
@@ -226,6 +196,9 @@ function MoonEclipse({ radius, appearance, dayOffset = 0, tidalLocked = false })
     materialRef.current.emissive.lerp(overlayEmissive, amount);
     materialRef.current.specular.lerp(overlaySpecular, amount);
     materialRef.current.shininess = THREE.MathUtils.lerp(materialRef.current.shininess, appearance.eclipseOverlayShininess || regular.eclipseOverlayShininess, amount);
+    // Keep the fade-out, then stop submitting an entirely invisible sphere.
+    if (targetOpacity === 0 && materialRef.current.opacity < 0.00001) materialRef.current.opacity = 0;
+    if (ref.current) ref.current.visible = targetOpacity > 0 || materialRef.current.opacity > 0;
     initialized.current = true;
   });
   return (
@@ -333,21 +306,41 @@ function SmoothMoonLighting({ sunPos, appearance }) {
   );
 }
 
-export default function Moon({
+function IPhoneFrameLoop({ active }) {
+  const invalidate = useThree((state) => state.invalidate);
+  React.useEffect(() => {
+    if (active) invalidate();
+  }, [active, invalidate]);
+  useFrame(() => {
+    if (active) invalidate();
+  });
+  // Keep the clock running: switching frameloop modes resets elapsed time and
+  // would jump the Moon and orbiter back to their initial rotation on resume.
+  return null;
+}
+
+function Moon({
   lightPosition = [10, 0, 10],
   moonScale = 1.0,
   isMoonEclipse = false,
   isMidAutumn = false,
   eclipseEvent = null,
-  showOrbiter = true,
+  showOrbiter = false,
   hasHUD = true,
   hudCenterY = 0.70,
   dayOffset = 0,
-  tidalLocked = false,
+  tidalLocked = true,
 }) {
+  const isIPhone = Platform.OS === 'ios' && !Platform.isPad;
+  const [appState, setAppState] = React.useState(AppState.currentState);
+  React.useEffect(() => {
+    if (!isIPhone) return;
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, [isIPhone]);
   const targetY = hasHUD ? hudCenterY : 0.0;
   const [lx, ly, lz] = lightPosition;
-  const sunPos = [lx, ly + targetY, lz];
+  const sunPos = React.useMemo(() => [lx, ly + targetY, lz], [lx, ly, lz, targetY]);
   const eventType = eclipseEvent?.type || (isMoonEclipse ? 'total' : null);
   const appearance = eventType
     ? moonConfig.appearance.eclipse[eventType] || moonConfig.appearance.eclipse.total
@@ -355,12 +348,10 @@ export default function Moon({
 
   return (
     <Canvas
-      frameloop="demand"
-      dpr={[1, 1.5]}
-      gl={{ antialias: false, powerPreference: 'low-power' }}
+      frameloop={isIPhone ? 'demand' : 'always'}
       camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}
     >
-      <MoonFrameScheduler />
+      {isIPhone && <IPhoneFrameLoop active={appState == null || appState === 'active'} />}
       <SmoothMoonLighting sunPos={sunPos} appearance={appearance} />
 
       <React.Suspense
@@ -389,3 +380,5 @@ export default function Moon({
     </Canvas>
   );
 }
+
+export default React.memo(Moon);
