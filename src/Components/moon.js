@@ -247,7 +247,7 @@ function MoonSystem({
           center={[0, 0, 0]}
           orbitRadius={BASE_MOON_RADIUS + 0.32}
           orbitSpeed={0.35}
-          showOrbitTrail={true}
+          showOrbitTrail={false}
           sunLightPosition={sunPos}
           orbiterScale={1}
         />
