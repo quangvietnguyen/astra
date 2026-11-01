@@ -66,3 +66,55 @@ test('iPhone 14 Pro panel reaches the bottom gutter while Duo rails and landscap
   assert.deepEqual(getObserverInsets(852, 393, portrait, true), portrait);
   assert.deepEqual(getObserverInsets(393, 852, portrait, false), portrait);
 });
+
+
+test('Duo panel uses equal side and bottom gutters on both displays and with either rail', () => {
+  const { getObserverInsets } = loaded.exports;
+  for (const [width, height] of [[466, 678], [951, 669], [669, 951]]) {
+    for (const side of ['left', 'right']) {
+      const nativeInsets = { top: 0, bottom: 34, left: 0, right: 0, [side]: 84 };
+      const insets = getObserverInsets(width, height, nativeInsets, true, true);
+      const layout = getObserverLayout(width, height, insets, 180, true, true);
+      assert.equal(insets.bottom, 0);
+      assert.equal(insets[side], 84, 'keep controls clear of the system rail');
+      assert.ok(Math.abs((layout.safeWidth - layout.panelWidth) / 2 - layout.gutter) < 1e-8);
+      assert.equal(height - insets.top - layout.safeHeight + layout.gutter, layout.gutter);
+    }
+  }
+});
+
+
+test('Duo drawable stays square throughout folding so cached frames cannot stretch the Moon', () => {
+  const { getDuoMoonSurface } = loaded.exports;
+  const outer = { width: 382, height: 678 };
+  const inner = { width: 867, height: 669 };
+  for (let step = 0; step <= 100; step++) {
+    const progress = step / 100;
+    const width = outer.width + (inner.width - outer.width) * progress;
+    const height = outer.height + (inner.height - outer.height) * progress;
+    const surface = getDuoMoonSurface(width, height);
+    assert.equal(surface.width, surface.height, 'native frame scales uniformly');
+    assert.equal(surface.height, 512, 'folding must not reallocate the native drawable');
+    assert.equal(surface.height * surface.transform[0].scale, height, 'vertical world-to-pixel framing stays unchanged');
+    assert.ok(Math.abs(surface.top + surface.height / 2 - height / 2) < 1e-8, 'center vertically');
+    assert.ok(Math.abs(surface.left + surface.width / 2 - width / 2) < 1e-8, 'center within the usable stage');
+  }
+  for (const [width, height] of [[585, 951], [469, 669], [678, 382]]) {
+    const surface = getDuoMoonSurface(width, height);
+    assert.equal(surface.width / surface.height, 1, 'portrait, split and rotation keep a square drawable');
+  }
+});
+
+
+test('only software renderers use a smaller Duo drawable; quality does not alter framing', () => {
+  const { getDuoSurfaceSide, getDuoMoonSurface } = loaded.exports;
+  assert.equal(getDuoSurfaceSide('Apple Software Renderer'), 192);
+  assert.equal(getDuoSurfaceSide('Apple GPU'), 512);
+  for (const renderer of ['Apple Software Renderer', 'Apple GPU']) {
+    const side = getDuoSurfaceSide(renderer);
+    const surface = getDuoMoonSurface(867, 669, side);
+    assert.equal(surface.width, surface.height);
+    assert.equal(surface.width * surface.transform[0].scale, 669);
+    assert.equal(surface.left + side / 2, 867 / 2);
+  }
+});

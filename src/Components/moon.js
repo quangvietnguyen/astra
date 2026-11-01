@@ -4,11 +4,13 @@ import { TextureLoader, THREE } from 'expo-three';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber/native';
 import moonConfig from '../data/moonConfig.json';
 import moonImg from '../../assets/moon.jpeg';
+import moonDuoImg from '../../assets/moon-duo.jpeg';
 import LunarOrbiter from './LunarOrbiter';
 
 const BASE_MOON_RADIUS = 2.05;
 const MOTION_SPEED = 9;
 const PHASE_SPEED = 7;
+const DUO_GL_OPTIONS = { antialias: false };
 
 const blend = (delta, speed) => 1 - Math.exp(-speed * Math.min(delta, 0.1));
 const blendLight = (light, intensity, color, amount) => {
@@ -46,11 +48,14 @@ export const LUNAR_ROTATION_PER_DAY_RAD = (2 * Math.PI) / 27.321661;
 // familiar Earth-facing hemisphere is centered at U=0.5, requiring a quarter-turn.
 const EARTH_FACING_ROTATION = -Math.PI / 2;
 
-function MoonCore({ radius, dayOffset = 0, appearance = moonConfig.appearance.regular, tidalLocked = false }) {
+function MoonCore({ isDuo = false, radius, dayOffset = 0, appearance = moonConfig.appearance.regular, tidalLocked = false }) {
   const ref = React.useRef();
   const materialRef = React.useRef();
   const initialized = React.useRef(false);
-  const map = useLoader(TextureLoader, moonImg);
+  const map = useLoader(TextureLoader, isDuo ? moonDuoImg : moonImg);
+  React.useLayoutEffect(() => {
+    if (isDuo && materialRef.current) materialRef.current.needsUpdate = true;
+  }, [isDuo, map]);
   useSmoothLunarRotation(ref, dayOffset, tidalLocked);
 
   const materialProps = appearance;
@@ -216,6 +221,7 @@ function MoonEclipse({ radius, appearance, dayOffset = 0, tidalLocked = false })
 }
 
 function MoonSystem({
+  isDuo,
   radius,
   appearance,
   showOrbiter,
@@ -239,7 +245,7 @@ function MoonSystem({
 
   return (
     <group ref={systemRef} position={initialPosition.current} scale={initialScale.current}>
-      <MoonCore radius={radius} dayOffset={dayOffset} appearance={appearance} tidalLocked={tidalLocked} />
+      <MoonCore isDuo={isDuo} radius={radius} dayOffset={dayOffset} appearance={appearance} tidalLocked={tidalLocked} />
       <SeamlessSunlitGlow radius={radius} sunPos={sunPos} appearance={appearance} />
       <MoonEclipse radius={radius} appearance={appearance} dayOffset={dayOffset} tidalLocked={tidalLocked} />
       {showOrbiter && (
@@ -274,14 +280,16 @@ function MoonFallbackSystem({ radius, moonScale, targetY, dayOffset = 0, appeara
   );
 }
 
-function SmoothMoonLighting({ sunPos, appearance }) {
+function SmoothMoonLighting({ sunPos, appearance, isDuo = false }) {
   const directionalRef = React.useRef();
   const pointRef = React.useRef();
   const specularRef = React.useRef();
   const ambientRef = React.useRef();
   const initialized = React.useRef(false);
   const sunTarget = React.useMemo(() => new THREE.Vector3(...sunPos), [sunPos[0], sunPos[1], sunPos[2]]);
-  const specularTarget = React.useMemo(() => new THREE.Vector3(sunPos[0] * 0.55, sunPos[1] * 0.55, Math.max(sunPos[2] * 0.55, 3)), [sunPos[0], sunPos[1], sunPos[2]]);
+  // A camera-side fill would illuminate the dark hemisphere at new moon.
+  // Duo's fill follows the same solar direction as its primary lights.
+  const specularTarget = React.useMemo(() => new THREE.Vector3(sunPos[0] * 0.55, sunPos[1] * 0.55, (isDuo ? sunPos[2] * 0.55 : Math.max(sunPos[2] * 0.55, 3))), [sunPos[0], sunPos[1], sunPos[2], isDuo]);
   const colors = React.useMemo(() => [appearance.directionalLightColor, appearance.pointLightColor, appearance.specularColor, appearance.ambientColor].map((color) => new THREE.Color(color)), [appearance]);
 
   useFrame((_, delta) => {
@@ -320,7 +328,53 @@ function IPhoneFrameLoop({ active }) {
   return null;
 }
 
+// A locked Moon has no continuous motion. Wake for changes and let the
+// interpolation settle; orbiting or unlocked rotation still runs continuously.
+function DuoFrameLoop({ active, animated, revision }) {
+  const invalidate = useThree((state) => state.invalidate);
+  const remaining = React.useRef(0);
+  React.useEffect(() => {
+    remaining.current = 1.2;
+    if (active) invalidate();
+  }, [active, animated, revision, invalidate]);
+  useFrame((_, delta) => {
+    remaining.current = Math.max(0, remaining.current - Math.min(delta, 0.1));
+    if (active && (animated || remaining.current > 0)) invalidate();
+  });
+  return null;
+}
+
+// Expo GL presents after its native command queue drains. The Duo simulator's
+// software renderer can fall behind a continuously invalidated scene, keeping
+// that queue nonempty and leaving the display blank. Bound it to one frame.
+function DuoFramePresenter() {
+  useFrame(({ gl, scene, camera, size }) => {
+    // Native display switches can resize the GL surface independently of
+    // Three's cached viewport. Reapply it before presenting the new window.
+    const context = gl.getContext();
+    context.canvas = gl.domElement;
+    gl.resetState();
+    gl.setViewport(0, 0, size.width, size.height);
+    // Native GL can replace the display framebuffer outside Three's cache.
+    context.bindFramebuffer(context.FRAMEBUFFER, null);
+    const pixelRatio = gl.getPixelRatio();
+    context.viewport(0, 0, Math.round(size.width * pixelRatio), Math.round(size.height * pixelRatio));
+    const aspect = size.width / size.height;
+    if (camera.aspect !== aspect) {
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+    }
+    gl.render(scene, camera);
+    context.endFrameEXP();
+    context.flushEXP();
+  }, 1);
+  return null;
+}
+
 function Moon({
+  isDuo = false,
+  canvasStyle,
+  onRendererCreated,
   lightPosition = [10, 0, 10],
   moonScale = 1.0,
   isMoonEclipse = false,
@@ -349,11 +403,19 @@ function Moon({
 
   return (
     <Canvas
+      style={canvasStyle}
+      gl={isDuo ? DUO_GL_OPTIONS : undefined}
+      onCreated={isDuo ? onRendererCreated : undefined}
       frameloop={isIPhone ? 'demand' : 'always'}
       camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}
     >
-      {isIPhone && <IPhoneFrameLoop active={appState == null || appState === 'active'} />}
-      <SmoothMoonLighting sunPos={sunPos} appearance={appearance} />
+      {isDuo ? <DuoFrameLoop
+        active={appState == null || appState === 'active'}
+        animated={showOrbiter || !tidalLocked}
+        revision={[dayOffset, moonScale, targetY, lx, ly, lz, eventType, isMidAutumn, tidalLocked, canvasStyle?.left, canvasStyle?.top, canvasStyle?.width, canvasStyle?.transform?.[0]?.scale].join(':')}
+      /> : isIPhone && <IPhoneFrameLoop active={appState == null || appState === 'active'} />}
+      {isDuo && <DuoFramePresenter />}
+      <SmoothMoonLighting sunPos={sunPos} appearance={appearance} isDuo={isDuo} />
 
       <React.Suspense
         fallback={
@@ -368,6 +430,7 @@ function Moon({
         }
       >
         <MoonSystem
+          isDuo={isDuo}
           radius={BASE_MOON_RADIUS}
           appearance={appearance}
           showOrbiter={showOrbiter}

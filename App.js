@@ -1,7 +1,7 @@
 import './src/utils/patchGL';
 import * as React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { AppState, StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder } from 'react-native';
+import { StatusBar, useVerticalBarEdgeIOS } from 'expo-status-bar';
+import { AppState, StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Easing, Platform, ImageBackground, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
 import Moon from './src/Components/moon';
 import { getCurrentGPSLocation } from './src/services/locationService';
 import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trackOrbiterVisibility } from './src/services/analyticsService';
@@ -9,7 +9,7 @@ import { getMoonAstronomy, getLunarEclipseEvent, isMidAutumnFullMoon } from './s
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 import moonConfig from './src/data/moonConfig.json';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getObserverLayout, getTimelineOffset, getObserverInsets } from './src/utils/adaptiveLayout';
+import { getObserverLayout, getTimelineOffset, getObserverInsets, getDuoMoonSurface, getDuoSurfaceSide } from './src/utils/adaptiveLayout';
 import { getMoonZoomRange, clampMoonScale, createMoonPinchHandlers } from './src/utils/moonZoom';
 import { getLocales, useLocales } from 'expo-localization';
 import { getLocaleTag, getPreferredLanguage, getTidalLockHint, translate, translatePhase } from './src/i18n';
@@ -47,7 +47,14 @@ function Observer() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isIPhone = Platform.OS === 'ios' && !Platform.isPad;
-  const contentInsets = getObserverInsets(width, height, insets, isIPhone);
+  const verticalBarEdge = useVerticalBarEdgeIOS();
+  const screen = Dimensions.get('screen');
+  const duoDetected = React.useRef(false);
+  // A system side rail or tablet-sized iPhone display identifies Duo. Retain
+  // that capability when folding, rotating, or entering a smaller split window.
+  duoDetected.current ||= isIPhone && (verticalBarEdge != null || Math.min(screen.width, screen.height) >= 600);
+  const isDuo = duoDetected.current;
+  const contentInsets = getObserverInsets(width, height, insets, isIPhone, isDuo);
   const zoomRange = getMoonZoomRange(isIPhone);
   const [panelHeight, setPanelHeight] = React.useState(180);
   const [trackWidth, setTrackWidth] = React.useState(() => Math.max(1, Math.min(width - insets.left - insets.right - 24, 720) - 36));
@@ -64,8 +71,14 @@ function Observer() {
   const [dragDays, setDragDays] = React.useState(0);
   const [moonScale, setMoonScale] = React.useState(1);
   const [showTimeline, setShowTimeline] = React.useState(true);
-  const layout = getObserverLayout(width, height, contentInsets, panelHeight, showTimeline);
+  const layout = getObserverLayout(width, height, contentInsets, panelHeight, showTimeline, isDuo);
   const { spacious, horizontalTimeline, panelWidth } = layout;
+  const compactDuoDetails = isDuo && !spacious;
+  const [duoSurfaceSide, setDuoSurfaceSide] = React.useState(512);
+  const configureDuoRenderer = React.useCallback(({ gl }) => {
+    const context = gl.getContext();
+    setDuoSurfaceSide(getDuoSurfaceSide(context.getParameter(context.RENDERER)));
+  }, []);
   const timelineAnimation = React.useRef(new Animated.Value(1)).current;
   const [showOrbiter, setShowOrbiter] = React.useState(false);
   const [tidalLocked, setTidalLocked] = React.useState(true);
@@ -262,8 +275,8 @@ function Observer() {
       <ImageBackground source={require('./assets/stars.jpeg')} resizeMode="cover" style={s.stars}>
         <SafeAreaView style={s.safeContent} edges={contentInsets.bottom === 0 ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
         <View style={s.observer}>
-        <View style={s.moonStage} {...pinchResponder.panHandlers}>
-        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale * layout.moonFitScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={true} hudCenterY={layout.moonCenterY} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
+        <View style={[s.moonStage, isDuo && s.moonStageDuo]} {...pinchResponder.panHandlers}>
+        <Moon isDuo={isDuo} onRendererCreated={configureDuoRenderer} canvasStyle={isDuo ? getDuoMoonSurface(layout.safeWidth, layout.safeHeight, duoSurfaceSide) : undefined} lightPosition={astronomy.lightPosition} moonScale={moonScale * layout.moonFitScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={true} hudCenterY={layout.moonCenterY} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
         </View>
 
         <View style={[s.header, { left: layout.gutter + 8 }]}>
@@ -364,7 +377,7 @@ function Observer() {
               </ScrollView>
               <View pointerEvents="none" style={[s.thumb, { left: (trackWidth - THUMB_SIZE) / 2, borderColor: accent }]}><Text style={s.thumbEmoji}>{phaseEmoji}</Text></View>
             </View>
-            <View style={[s.timelineDetails, horizontalTimeline && s.timelineDetailsLandscape]}><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('age')} <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('distance')} <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString(localeTag)} km</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('angle')} <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('view')} <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
+            <View style={[s.timelineDetails, horizontalTimeline && s.timelineDetailsLandscape, compactDuoDetails && s.timelineDetailsDuo]}><Text numberOfLines={compactDuoDetails ? 1 : undefined} adjustsFontSizeToFit={compactDuoDetails} minimumFontScale={0.7} style={[s.detailText, horizontalTimeline && s.detailTextLandscape, compactDuoDetails && s.detailTextDuo]}>{t('age')} <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text numberOfLines={compactDuoDetails ? 1 : undefined} adjustsFontSizeToFit={compactDuoDetails} minimumFontScale={0.7} style={[s.detailText, horizontalTimeline && s.detailTextLandscape, compactDuoDetails && s.detailTextDuo]}>{t('distance')} <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString(localeTag)} km</Text></Text><Text numberOfLines={compactDuoDetails ? 1 : undefined} adjustsFontSizeToFit={compactDuoDetails} minimumFontScale={0.7} style={[s.detailText, horizontalTimeline && s.detailTextLandscape, compactDuoDetails && s.detailTextDuo]}>{t('angle')} <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text numberOfLines={compactDuoDetails ? 1 : undefined} adjustsFontSizeToFit={compactDuoDetails} minimumFontScale={0.7} style={[s.detailText, horizontalTimeline && s.detailTextLandscape, compactDuoDetails && s.detailTextDuo]}>{t('view')} <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
         </Animated.View>
         <Animated.View
           style={[s.collapsedOverlay, { opacity: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }] }]}
@@ -372,7 +385,7 @@ function Observer() {
           accessibilityElementsHidden={showTimeline}
           importantForAccessibility={showTimeline ? 'no-hide-descendants' : 'auto'}
         >
-          <TouchableOpacity style={s.collapsedTimeline} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`${t('expandTimeline')}. ${localizedPhaseName}, ${astronomy.illuminationPercent}%`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
+          <TouchableOpacity style={[s.collapsedTimeline, isDuo && { bottom: layout.gutter }]} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`${t('expandTimeline')}. ${localizedPhaseName}, ${astronomy.illuminationPercent}%`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
         </Animated.View>
         </View>
         </SafeAreaView>
@@ -386,6 +399,7 @@ const s = StyleSheet.create({
   safeContent: { flex: 1 },
   observer: { flex: 1 },
   moonStage: { flex: 1 },
+  moonStageDuo: { overflow: 'hidden' },
   stars: { flex: 1, width: '100%' },
   header: { position: 'absolute', top: 16, left: 20, right: 16, zIndex: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   headerCopy: { flex: 1, minWidth: 0 },
@@ -438,6 +452,8 @@ const s = StyleSheet.create({
   thumbEmoji: { fontSize: 29, lineHeight: 34 },
   timelineDetails: { marginHorizontal: 18, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(151, 183, 187, 0.17)', flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 10, rowGap: 5 },
   timelineDetailsLandscape: { width: 230, marginHorizontal: 0, paddingTop: 0, paddingLeft: 20, borderTopWidth: 0, columnGap: 6, rowGap: 8 },
+  timelineDetailsDuo: { flexWrap: 'nowrap', columnGap: 5 },
+  detailTextDuo: { fontSize: 8, flexShrink: 1 },
   detailText: { color: '#779497', fontSize: 9, fontWeight: '700' },
   detailTextLandscape: { width: '48%', fontSize: 10 },
   detailValue: { color: '#d5e4e0', fontWeight: '600' },

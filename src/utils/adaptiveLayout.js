@@ -1,19 +1,19 @@
-// On a portrait iPhone without a side rail, let the panel background extend
-// into the home-indicator area so its bottom gap matches its horizontal gaps.
-export function getObserverInsets(width, height, insets, isIPhone) {
+// Extend the Duo panel (and existing portrait iPhone panel) into the bottom
+// safe area so its bottom gap matches its side gutters. Keep the side rail.
+export function getObserverInsets(width, height, insets, isIPhone, isDuo = false) {
   const edgeToEdgeBottom = isIPhone && width < 600 && height > width
     && insets.left < 40 && insets.right < 40;
-  return edgeToEdgeBottom ? { ...insets, bottom: 0 } : insets;
+  return (isDuo || edgeToEdgeBottom) ? { ...insets, bottom: 0 } : insets;
 }
 
-// Window space, rather than device identity, determines the composition.
-export function getObserverLayout(width, height, insets = {}, panelHeight = 180, showTimeline = true) {
+// Window space determines the composition; Duo panels fill the usable width.
+export function getObserverLayout(width, height, insets = {}, panelHeight = 180, showTimeline = true, isDuo = false) {
   const safeWidth = Math.max(1, width - (insets.left || 0) - (insets.right || 0));
   const safeHeight = Math.max(1, height - (insets.top || 0) - (insets.bottom || 0));
   const spacious = safeWidth >= 700;
   const horizontalTimeline = safeWidth >= 1000 && safeWidth > safeHeight;
   const gutter = Math.max(12, Math.min(24, 12 + (safeWidth - 400) / 25));
-  const panelWidth = Math.max(1, Math.min(safeWidth - gutter * 2, horizontalTimeline ? 1200 : 720));
+  const panelWidth = Math.max(1, isDuo ? safeWidth - gutter * 2 : Math.min(safeWidth - gutter * 2, horizontalTimeline ? 1200 : 720));
   const top = 78;
   const bottom = showTimeline ? panelHeight + 30 : 68;
   const availableHeight = Math.max(1, safeHeight - top - bottom);
@@ -30,4 +30,23 @@ export function getObserverLayout(width, height, insets = {}, panelHeight = 180,
 
 export function getTimelineOffset(previewDays, radius, dayWidth) {
   return (radius + previewDays) * dayWidth;
+}
+
+
+// Keep the drawable allocation fixed through fold animations. Native buffer
+// resizes clear the previous frame; rectangular resizes also stretch it.
+// Uniform view scaling preserves the existing vertical world-to-pixel mapping.
+export function getDuoMoonSurface(width, height, side = 512) {
+  return {
+    position: 'absolute', width: side, height: side,
+    left: (width - side) / 2, top: (height - side) / 2,
+    transform: [{ scale: height / side }],
+  };
+}
+
+
+// Simulator software rasterization is much slower than a device GPU. Keep its
+// drawable smaller without changing the Moon's point size or camera framing.
+export function getDuoSurfaceSide(renderer) {
+  return /software/i.test(renderer) ? 192 : 512;
 }
