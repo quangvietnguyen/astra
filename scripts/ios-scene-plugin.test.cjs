@@ -32,6 +32,7 @@ test('scene migration preserves Firebase initialization and is idempotent', () =
   const migrated = transform(legacy);
   assert.equal((migrated.match(/FirebaseApp.configure\(\)/g) || []).length, 1);
   assert.ok(migrated.includes('configurationForConnecting'));
+  assert.ok(migrated.includes('ExpoAppDelegate, ExpoReactNativeFactoryProvider'));
   assert.ok(!migrated.includes('factory.startReactNative('));
   assert.ok(!migrated.includes('UIWindow(frame:'));
   assert.equal(transform(migrated), migrated);
@@ -45,7 +46,29 @@ test('scene class uses the module-qualified name declared by its manifest', asyn
   const source = fs.readFileSync(path.join(__dirname, '../ios/Astra/SceneDelegate.swift'), 'utf8');
   assert.ok(source.includes('class SceneDelegate:'));
   assert.ok(!source.includes('@objc(SceneDelegate)'));
-  assert.ok(source.includes('UIWindow(windowScene: windowScene)'));
+  assert.ok(source.includes('class SceneDelegate: ExpoAppSceneDelegate'));
+  assert.ok(source.includes('super.scene(scene, willConnectTo: session, options: connectionOptions)'));
+  assert.ok(source.includes('super.sceneDidBecomeActive(scene)'));
+  assert.ok(source.includes('super.sceneWillEnterForeground(scene)'));
+  assert.ok(!source.includes('factory.startReactNative('));
+  assert.ok(!source.includes('RCTLinkingManager.application('));
+});
+
+test('SDK 58 template initializes Firebase without the old window startup anchor', () => {
+  const mods = loadMods();
+  const modern = `internal import Expo
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
+  func start() {
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+class ReactNativeDelegate {}`;
+  const transform = contents => mods.withAppDelegate({modResults: {contents}}).modResults.contents;
+  const migrated = transform(modern);
+  assert.equal((migrated.match(/FirebaseApp.configure\(\)/g) || []).length, 1);
+  assert.ok(migrated.includes('import FirebaseCore'));
+  assert.ok(migrated.indexOf('FirebaseApp.configure()') < migrated.indexOf('return super.application'));
+  assert.equal(transform(migrated), migrated);
 });
 
 test('iPad supports all orientations while iPhone remains portrait-only', () => {
@@ -82,5 +105,6 @@ test('iPad supports all orientations while iPhone remains portrait-only', () => 
   assert.equal(transform(migrated), migrated);
   const source = fs.readFileSync(path.join(__dirname, '../ios/Astra/SceneDelegate.swift'), 'utf8');
   assert.ok(!source.includes('userInterfaceIdiom == .phone'));
-  assert.equal((source.match(/userInterfaceIdiom == \.pad \? \.all : \.portrait/g) || []).length, 3);
+  assert.ok(source.includes('userInterfaceIdiom == .pad ? .all : .portrait'));
+  assert.equal((source.match(/updateOrientation\(for: scene\)/g) || []).length, 3);
 });

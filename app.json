@@ -60,6 +60,7 @@
       "./plugins/withIosSceneDelegate",
       "expo-status-bar",
       "expo-asset",
+      "expo-localization",
       [
         "expo-splash-screen",
         {

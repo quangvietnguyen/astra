@@ -55,126 +55,34 @@ extension UIViewController {
   }
 }
 
-class SceneDelegate: UIResponder, UIWindowSceneDelegate {
-  var window: UIWindow?
-
-  func scene(
+class SceneDelegate: ExpoAppSceneDelegate {
+  override func scene(
     _ scene: UIScene,
     willConnectTo session: UISceneSession,
     options connectionOptions: UIScene.ConnectionOptions
   ) {
     UIViewController.astra_enableAlertSuppressionForDynamicIcon()
-    guard let windowScene = scene as? UIWindowScene else { return }
-    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate,
-          let factory = appDelegate.reactNativeFactory else { return }
+    super.scene(scene, willConnectTo: session, options: connectionOptions)
+    updateOrientation(for: scene)
+  }
 
-    if #available(iOS 16.0, *) {
+  override func sceneDidBecomeActive(_ scene: UIScene) {
+    super.sceneDidBecomeActive(scene)
+    updateOrientation(for: scene)
+  }
+
+  override func sceneWillEnterForeground(_ scene: UIScene) {
+    super.sceneWillEnterForeground(scene)
+    updateOrientation(for: scene)
+  }
+
+  private func updateOrientation(for scene: UIScene) {
+    if #available(iOS 16.0, *), let windowScene = scene as? UIWindowScene {
       let orientations: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
       let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: orientations)
       windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
+      window?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
     }
-
-    let window = UIWindow(windowScene: windowScene)
-    self.window = window
-    appDelegate.window = window
-
-    var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
-    if let url = connectionOptions.urlContexts.first?.url {
-      let urlKey = UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsURLKey")
-      launchOptions[urlKey] = url
-    }
-    if let userActivity = connectionOptions.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb }) {
-      let userActivityDictionaryKey = UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityDictionaryKey")
-      launchOptions[userActivityDictionaryKey] = [
-        "UIApplicationLaunchOptionsUserActivityTypeKey": userActivity.activityType,
-        "UIApplicationLaunchOptionsUserActivityKey": userActivity,
-      ]
-    }
-
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions.isEmpty ? nil : launchOptions
-    )
-
-    if #available(iOS 16.0, *) {
-      window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-    }
-
-    window.makeKeyAndVisible()
-
-    for context in connectionOptions.urlContexts {
-      _ = appDelegate.application(UIApplication.shared, open: context.url, options: [:])
-      RCTLinkingManager.application(UIApplication.shared, open: context.url, options: [:])
-    }
-    for activity in connectionOptions.userActivities {
-      _ = appDelegate.application(UIApplication.shared, continue: activity, restorationHandler: { _ in })
-      RCTLinkingManager.application(UIApplication.shared, continue: activity, restorationHandler: { _ in })
-    }
-  }
-
-  func sceneDidDisconnect(_ scene: UIScene) {
-    window = nil
-  }
-
-  func sceneDidBecomeActive(_ scene: UIScene) {
-    if #available(iOS 16.0, *) {
-      if let windowScene = scene as? UIWindowScene {
-        let orientations: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-        let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: orientations)
-        windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
-      }
-    }
-    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-      appDelegate.applicationDidBecomeActive(UIApplication.shared)
-    }
-  }
-
-  func sceneWillResignActive(_ scene: UIScene) {
-    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-      appDelegate.applicationWillResignActive(UIApplication.shared)
-    }
-  }
-
-  func sceneWillEnterForeground(_ scene: UIScene) {
-    if #available(iOS 16.0, *) {
-      if let windowScene = scene as? UIWindowScene {
-        let orientations: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-        let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: orientations)
-        windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
-      }
-    }
-    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-      appDelegate.applicationWillEnterForeground(UIApplication.shared)
-    }
-  }
-
-  func sceneDidEnterBackground(_ scene: UIScene) {
-    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-      appDelegate.applicationDidEnterBackground(UIApplication.shared)
-    }
-  }
-
-  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else { return }
-    for context in URLContexts {
-      var options: [UIApplication.OpenURLOptionsKey: Any] = [:]
-      if let src = context.options.sourceApplication {
-        options[.sourceApplication] = src
-      }
-      if let annotation = context.options.annotation {
-        options[.annotation] = annotation
-      }
-      options[.openInPlace] = context.options.openInPlace
-      _ = appDelegate.application(UIApplication.shared, open: context.url, options: options)
-      RCTLinkingManager.application(UIApplication.shared, open: context.url, options: options)
-    }
-  }
-
-  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
-    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else { return }
-    _ = appDelegate.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
-    RCTLinkingManager.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
   }
 }
 `;
@@ -208,10 +116,28 @@ function withIosSceneDelegate(config) {
   config = withAppDelegate(config, config => {
     let contents = config.modResults.contents;
 
-    // Migrate the previous iPad exception even when scene methods already exist.
+    // SDK 58's scene delegate obtains the React Native factory through this protocol.
     contents = contents.replace(
-      /    if UIDevice\.current\.userInterfaceIdiom == \.pad \{\s*return \.all\s*\}\n/g,
-      '',
+      /class AppDelegate: ExpoAppDelegate\s*\{/,
+      'class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {',
+    );
+
+    // RNFirebase's plugin looks for window startup, which moved out of
+    // AppDelegate in SDK 58. Initialize Firebase before Expo's launch subscribers.
+    if (!contents.includes('FirebaseApp.configure()')) {
+      if (!contents.includes('import FirebaseCore')) {
+        contents = 'import FirebaseCore\n' + contents;
+      }
+      contents = contents.replace(
+        /return super\.application\(application, didFinishLaunchingWithOptions: launchOptions\)/,
+        'FirebaseApp.configure()\n    return super.application(application, didFinishLaunchingWithOptions: launchOptions)',
+      );
+    }
+
+    // Preserve iPad rotation when migrating an existing portrait-only delegate.
+    contents = contents.replace(
+      /    if UIDevice\.current\.userInterfaceIdiom == \.pad \{\s*return \.all\s*\}\s*return \.portrait/g,
+      '    return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait',
     );
 
     // Remove only window startup. Firebase and other native initializers can be
