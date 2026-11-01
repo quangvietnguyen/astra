@@ -63,12 +63,12 @@ FirebaseApp.configure()
     return config
   }
 
-  // MARK: - Orientation Lock
+  // MARK: - Adaptive Window Orientations
   public override func application(
     _ application: UIApplication,
     supportedInterfaceOrientationsFor window: UIWindow?
   ) -> UIInterfaceOrientationMask {
-    return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+    return .all
   }
 
 }

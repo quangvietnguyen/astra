@@ -63,35 +63,20 @@ class SceneDelegate: ExpoAppSceneDelegate {
   ) {
     UIViewController.astra_enableAlertSuppressionForDynamicIcon()
     super.scene(scene, willConnectTo: session, options: connectionOptions)
-    updateOrientation(for: scene)
-  }
-
-  override func sceneDidBecomeActive(_ scene: UIScene) {
-    super.sceneDidBecomeActive(scene)
-    updateOrientation(for: scene)
-  }
-
-  override func sceneWillEnterForeground(_ scene: UIScene) {
-    super.sceneWillEnterForeground(scene)
-    updateOrientation(for: scene)
-  }
-
-  private func updateOrientation(for scene: UIScene) {
-    if #available(iOS 16.0, *), let windowScene = scene as? UIWindowScene {
-      let orientations: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-      let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: orientations)
-      windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
-      window?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-    }
   }
 }
 `;
 
 function withIosSceneDelegate(config) {
-  // 1. Configure Info.plist with UIApplicationSceneManifest and orientation locks
+  // 1. Allow the window to resize and rotate on both Duo displays.
   config = withInfoPlist(config, config => {
-    config.modResults.UIRequiresFullScreen = true;
-    config.modResults.UISupportedInterfaceOrientations = ['UIInterfaceOrientationPortrait'];
+    config.modResults.UIRequiresFullScreen = false;
+    config.modResults.UISupportedInterfaceOrientations = [
+      'UIInterfaceOrientationPortrait',
+      'UIInterfaceOrientationPortraitUpsideDown',
+      'UIInterfaceOrientationLandscapeLeft',
+      'UIInterfaceOrientationLandscapeRight',
+    ];
     config.modResults['UISupportedInterfaceOrientations~ipad'] = [
       'UIInterfaceOrientationPortrait',
       'UIInterfaceOrientationPortraitUpsideDown',
@@ -134,10 +119,15 @@ function withIosSceneDelegate(config) {
       );
     }
 
-    // Preserve iPad rotation when migrating an existing portrait-only delegate.
+    // Remove the old phone-only orientation lock during migration.
     contents = contents.replace(
       /    if UIDevice\.current\.userInterfaceIdiom == \.pad \{\s*return \.all\s*\}\s*return \.portrait/g,
-      '    return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait',
+      '    return .all',
+    );
+
+    contents = contents.replace(
+      /return UIDevice\.current\.userInterfaceIdiom == \.pad \? \.all : \.portrait/g,
+      'return .all',
     );
 
     // Remove only window startup. Firebase and other native initializers can be
@@ -163,12 +153,12 @@ function withIosSceneDelegate(config) {
     return config
   }
 
-  // MARK: - Orientation Lock
+  // MARK: - Adaptive Window Orientations
   public override func application(
     _ application: UIApplication,
     supportedInterfaceOrientationsFor window: UIWindow?
   ) -> UIInterfaceOrientationMask {
-    return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+    return .all
   }
 `;
       const reactNativeDelegateIndex = contents.indexOf('class ReactNativeDelegate');

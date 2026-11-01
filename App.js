@@ -8,6 +8,9 @@ import { trackDateOffsetChange, trackHudVisibility, trackMoonSizeSelection, trac
 import { getMoonAstronomy, getLunarEclipseEvent, isMidAutumnFullMoon } from './src/utils/astronomy';
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 import moonConfig from './src/data/moonConfig.json';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getObserverLayout, getTimelineOffset, getObserverInsets } from './src/utils/adaptiveLayout';
+import { getMoonZoomRange, clampMoonScale, createMoonPinchHandlers } from './src/utils/moonZoom';
 import { getLocales, useLocales } from 'expo-localization';
 import { getLocaleTag, getPreferredLanguage, getTidalLockHint, translate, translatePhase } from './src/i18n';
 
@@ -18,6 +21,10 @@ const TIMELINE_RADIUS = 90;
 const TIMELINE_DAYS = Array.from({ length: TIMELINE_RADIUS * 2 + 1 }, (_, index) => index - TIMELINE_RADIUS);
 
 export default function App() {
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Observer /></SafeAreaProvider>;
+}
+
+function Observer() {
   const locales = useLocales();
   const [, refreshOnForeground] = React.useReducer((count) => count + 1, 0);
   React.useEffect(() => {
@@ -38,13 +45,12 @@ export default function App() {
   const t = (key) => translate(language, key);
   const localeTag = getLocaleTag(language);
   const { width, height } = useWindowDimensions();
-  const isIPad = Platform.OS === 'ios' && Platform.isPad;
-  const isIPhone = Platform.OS === 'ios' && !isIPad;
-  const isIPadLandscape = isIPad && width > height;
-  const isTablet = Platform.OS === 'ios' ? isIPad : width >= 768;
-  const panelWidth = isIPadLandscape ? Math.min(width - 64, 1200) : Math.min(width - (isTablet ? 64 : 24), 720);
-  const [landscapeTrackWidth, setLandscapeTrackWidth] = React.useState(480);
-  const trackWidth = isIPadLandscape ? landscapeTrackWidth : panelWidth - 36;
+  const insets = useSafeAreaInsets();
+  const isIPhone = Platform.OS === 'ios' && !Platform.isPad;
+  const contentInsets = getObserverInsets(width, height, insets, isIPhone);
+  const zoomRange = getMoonZoomRange(isIPhone);
+  const [panelHeight, setPanelHeight] = React.useState(180);
+  const [trackWidth, setTrackWidth] = React.useState(() => Math.max(1, Math.min(width - insets.left - insets.right - 24, 720) - 36));
   const timelineRef = React.useRef(null);
   const scrollCommitted = React.useRef(false);
   const previewDaysRef = React.useRef(0);
@@ -58,12 +64,17 @@ export default function App() {
   const [dragDays, setDragDays] = React.useState(0);
   const [moonScale, setMoonScale] = React.useState(1);
   const [showTimeline, setShowTimeline] = React.useState(true);
+  const layout = getObserverLayout(width, height, contentInsets, panelHeight, showTimeline);
+  const { spacious, horizontalTimeline, panelWidth } = layout;
   const timelineAnimation = React.useRef(new Animated.Value(1)).current;
   const [showOrbiter, setShowOrbiter] = React.useState(false);
   const [tidalLocked, setTidalLocked] = React.useState(true);
   const [clockTime, setClockTime] = React.useState(() => new Date());
   const moonScaleRef = React.useRef(1);
   const zoomStartRef = React.useRef(1);
+  const zoomRangeRef = React.useRef(zoomRange);
+  zoomRangeRef.current = zoomRange;
+  const zoomFraction = (moonScale - zoomRange.min) / (zoomRange.max - zoomRange.min);
   const zoomPhaseRef = React.useRef('');
   zoomTrackHeightRef.current = zoomTrackHeight;
   moonScaleRef.current = moonScale;
@@ -129,7 +140,11 @@ export default function App() {
     setDayOffset(offset);
     trackDateOffsetChange({ delta, offset, source, phaseName: astronomy.phaseName });
   };
-  const centerTimeline = () => timelineRef.current?.scrollTo({ x: TIMELINE_RADIUS * DAY_WIDTH, animated: false });
+  const centerTimeline = () => timelineRef.current?.scrollTo({ x: getTimelineOffset(0, TIMELINE_RADIUS, DAY_WIDTH), animated: false });
+  const restoreTimelinePosition = () => {
+    // Resizing must retain a scrub in progress rather than jumping back to today.
+    timelineRef.current?.scrollTo({ x: getTimelineOffset(previewDaysRef.current, TIMELINE_RADIUS, DAY_WIDTH), animated: false });
+  };
   const previewTimeline = (event) => {
     if (scrollCommitted.current) return;
     const days = Math.max(-TIMELINE_RADIUS, Math.min(TIMELINE_RADIUS,
@@ -165,8 +180,8 @@ export default function App() {
     onPanResponderGrant: () => { revealZoomControl(); zoomStartRef.current = moonScaleRef.current; },
     onPanResponderMove: (_, gesture) => {
       const travelHeight = Math.max(1, zoomTrackHeightRef.current - ZOOM_THUMB_SIZE);
-      const scale = Math.max(0.6, Math.min(1.6, zoomStartRef.current - gesture.dy / travelHeight));
-      const nextScale = Number(scale.toFixed(2));
+      const range = zoomRangeRef.current;
+      const nextScale = clampMoonScale(zoomStartRef.current - gesture.dy / travelHeight * (range.max - range.min), range);
       moonScaleRef.current = nextScale;
       setMoonScale(nextScale);
     },
@@ -179,8 +194,20 @@ export default function App() {
     onPanResponderTerminate: scheduleZoomFade,
   }), [revealZoomControl, scheduleZoomFade]);
 
+  const pinchResponder = React.useMemo(() => PanResponder.create(createMoonPinchHandlers({
+    getScale: () => moonScaleRef.current,
+    getRange: () => zoomRangeRef.current,
+    setScale: (scale) => { moonScaleRef.current = scale; setMoonScale(scale); },
+    onStart: revealZoomControl,
+    onEnd: (changed) => {
+      scheduleZoomFade();
+      if (changed) trackMoonSizeSelection({ scale: moonScaleRef.current, method: 'pinch', phaseName: zoomPhaseRef.current });
+    },
+  })), [revealZoomControl, scheduleZoomFade]);
+
   const selectMoonSize = (scale, method) => {
-    const nextScale = Math.max(0.6, Math.min(1.6, Number(scale.toFixed(2))));
+    const nextScale = clampMoonScale(scale, zoomRange);
+    moonScaleRef.current = nextScale;
     setMoonScale(nextScale);
     trackMoonSizeSelection({ scale: nextScale, method, phaseName: astronomy.phaseName });
   };
@@ -233,9 +260,13 @@ export default function App() {
     <View style={s.container}>
       <StatusBar style="light" />
       <ImageBackground source={require('./assets/stars.jpeg')} resizeMode="cover" style={s.stars}>
-        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={showTimeline} hudCenterY={isIPad ? 0 : isIPhone ? 0.45 : 0.70} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
+        <SafeAreaView style={s.safeContent} edges={contentInsets.bottom === 0 ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
+        <View style={s.observer}>
+        <View style={s.moonStage} {...pinchResponder.panHandlers}>
+        <Moon lightPosition={astronomy.lightPosition} moonScale={moonScale * layout.moonFitScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={true} hudCenterY={layout.moonCenterY} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
+        </View>
 
-        <View style={[s.header, isTablet && s.headerTablet]}>
+        <View style={[s.header, { left: layout.gutter + 8 }]}>
           <View style={s.headerCopy} pointerEvents="none">
             <Text style={s.brand}>ASTRA <Text style={s.brandSub}>/ LUNAR OBSERVER</Text></Text>
             {location && <Text style={s.location} numberOfLines={1}><Text style={s.locationDot}>●  </Text>{`${formatCoord(location.latitude, true)}, ${formatCoord(location.longitude, false)}${location.city ? ` (${location.city})` : ''}`}</Text>}
@@ -243,7 +274,7 @@ export default function App() {
           </View>
         </View>
 
-        <View style={[s.floatingControls, isIPhone && s.floatingControlsIPhone, isTablet && s.floatingControlsTablet]}>
+        <View style={s.floatingControls}>
           <Animated.View
             style={[s.zoomControl, { opacity: zoomOpacity }]}
             onTouchStart={revealZoomControl}
@@ -251,23 +282,27 @@ export default function App() {
           >
             <View style={s.zoomTrack} onLayout={(event) => { const next = event.nativeEvent.layout.height; if (next !== zoomTrackHeightRef.current) { zoomTrackHeightRef.current = next; setZoomTrackHeight(next); } }}>
               <View style={s.zoomLine} />
-              <View style={[s.zoomFill, { height: (moonScale - 0.6) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} />
-              <View style={[s.zoomThumb, { top: (1.6 - moonScale) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={t('moonZoom')} accessibilityValue={{ min: 60, max: 160, now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)}%` }} accessibilityActions={[{ name: 'increment', label: t('zoomIn') }, { name: 'decrement', label: t('zoomOut') }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
+              <View style={[s.zoomFill, { height: zoomFraction * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} />
+              <View style={[s.zoomThumb, { top: (1 - zoomFraction) * (zoomTrackHeight - ZOOM_THUMB_SIZE) }]} hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }} {...zoomResponder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={t('moonZoom')} accessibilityValue={{ min: Math.round(zoomRange.min * 100), max: Math.round(zoomRange.max * 100), now: Math.round(moonScale * 100), text: `${Math.round(moonScale * 100)}%` }} accessibilityActions={[{ name: 'increment', label: t('zoomIn') }, { name: 'decrement', label: t('zoomOut') }]} onAccessibilityAction={(event) => selectMoonSize(moonScale + (event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1), 'accessibility')} />
             </View>
           </Animated.View>
         </View>
 
         <Animated.View
-          style={[s.timelinePanel, isIPhone && s.timelinePanelIPhone, isIPadLandscape && s.timelinePanelLandscape, { width: panelWidth }, {
+          style={[s.timelinePanel, !spacious && s.timelinePanelIPhone, horizontalTimeline && s.timelinePanelLandscape, { width: panelWidth, bottom: layout.gutter }, {
             opacity: timelineAnimation,
             transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [220, 0] }) }],
           }]}
+          onLayout={(event) => {
+            const nextHeight = event.nativeEvent.layout.height;
+            setPanelHeight((previous) => Math.abs(previous - nextHeight) < 1 ? previous : nextHeight);
+          }}
           pointerEvents={showTimeline ? 'auto' : 'none'}
           accessibilityElementsHidden={!showTimeline}
           importantForAccessibility={showTimeline ? 'auto' : 'no-hide-descendants'}
         >
-            <View style={[s.timelineHeader, isIPadLandscape && s.timelineHeaderLandscape]}>
-              <View style={[s.dateCopy, isIPadLandscape && s.dateCopyLandscape]}>
+            <View style={[s.timelineHeader, horizontalTimeline && s.timelineHeaderLandscape]}>
+              <View style={[s.dateCopy, horizontalTimeline && s.dateCopyLandscape]}>
                 <View style={s.timelineEyebrowRow}>
                   <Text style={s.timelineEyebrow}>{t('timeline')}</Text>
                   <TouchableOpacity
@@ -301,11 +336,11 @@ export default function App() {
               </View>
             </View>
             <View
-              style={[s.track, isIPadLandscape && s.trackLandscape]}
-              onLayout={isIPadLandscape ? (event) => {
+              style={[s.track, horizontalTimeline && s.trackLandscape]}
+              onLayout={(event) => {
                 const measuredWidth = event.nativeEvent.layout.width;
-                setLandscapeTrackWidth((previous) => previous === measuredWidth ? previous : measuredWidth);
-              } : undefined}
+                setTrackWidth((previous) => previous === measuredWidth ? previous : measuredWidth);
+              }}
             >
               <View pointerEvents="none" style={s.trackLine} />
               <ScrollView
@@ -315,9 +350,9 @@ export default function App() {
                 showsHorizontalScrollIndicator={false}
                 decelerationRate="fast"
                 snapToInterval={DAY_WIDTH}
-                contentContainerStyle={{ paddingHorizontal: (trackWidth - DAY_WIDTH) / 2 }}
+                contentContainerStyle={{ paddingHorizontal: Math.max(0, (trackWidth - DAY_WIDTH) / 2) }}
                 contentOffset={{ x: TIMELINE_RADIUS * DAY_WIDTH, y: 0 }}
-                onLayout={centerTimeline}
+                onLayout={restoreTimelinePosition}
                 onScrollBeginDrag={() => { scrollCommitted.current = false; }}
                 onScroll={previewTimeline}
                 scrollEventThrottle={16}
@@ -329,7 +364,7 @@ export default function App() {
               </ScrollView>
               <View pointerEvents="none" style={[s.thumb, { left: (trackWidth - THUMB_SIZE) / 2, borderColor: accent }]}><Text style={s.thumbEmoji}>{phaseEmoji}</Text></View>
             </View>
-            <View style={[s.timelineDetails, isIPadLandscape && s.timelineDetailsLandscape]}><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('age')} <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('distance')} <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString(localeTag)} km</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('angle')} <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, isIPadLandscape && s.detailTextLandscape]}>{t('view')} <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
+            <View style={[s.timelineDetails, horizontalTimeline && s.timelineDetailsLandscape]}><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('age')} <Text style={s.detailValue}>{astronomy.moonAgeDays} d</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('distance')} <Text style={s.detailValue}>{astronomy.moonDistanceKm.toLocaleString(localeTag)} km</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('angle')} <Text style={s.detailValue}>{astronomy.elongationDeg}°</Text></Text><Text style={[s.detailText, horizontalTimeline && s.detailTextLandscape]}>{t('view')} <Text style={s.detailValue}>{hemisphere}</Text></Text></View>
         </Animated.View>
         <Animated.View
           style={[s.collapsedOverlay, { opacity: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: timelineAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }] }]}
@@ -337,26 +372,28 @@ export default function App() {
           accessibilityElementsHidden={showTimeline}
           importantForAccessibility={showTimeline ? 'no-hide-descendants' : 'auto'}
         >
-          <TouchableOpacity style={[s.collapsedTimeline, isIPad && s.collapsedTimelineIPad]} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`${t('expandTimeline')}. ${localizedPhaseName}, ${astronomy.illuminationPercent}%`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
+          <TouchableOpacity style={s.collapsedTimeline} onPress={() => toggleTimeline(true)} accessibilityRole="button" accessibilityLabel={`${t('expandTimeline')}. ${localizedPhaseName}, ${astronomy.illuminationPercent}%`}><Text style={s.collapsedText}>{phaseEmoji}  {displayedDate.toLocaleDateString(localeTag, { month: 'short', day: 'numeric' })}</Text><Text style={s.collapsedArrow}>⌃</Text></TouchableOpacity>
         </Animated.View>
+        </View>
+        </SafeAreaView>
       </ImageBackground>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', paddingTop: Platform.OS === 'ios' ? 44 : 20 },
+  container: { flex: 1, backgroundColor: '#000' },
+  safeContent: { flex: 1 },
+  observer: { flex: 1 },
+  moonStage: { flex: 1 },
   stars: { flex: 1, width: '100%' },
   header: { position: 'absolute', top: 16, left: 20, right: 16, zIndex: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  headerTablet: { top: 26, left: 32 },
   headerCopy: { flex: 1, minWidth: 0 },
   brand: { color: '#e5f4f4', fontSize: 14, fontWeight: '800', letterSpacing: 2 },
   brandSub: { color: '#6d9c9f', fontWeight: '500', letterSpacing: 1.2 },
   location: { color: '#a7b9bb', fontSize: 11, marginTop: 7 },
   locationDot: { color: '#4ec7a3' },
   floatingControls: { position: 'absolute', top: 80, right: 16, zIndex: 11, alignItems: 'flex-end' },
-  floatingControlsIPhone: { top: 64 },
-  floatingControlsTablet: { top: 78, right: 16 },
   zoomControl: { width: 34, height: 118, paddingHorizontal: 5, paddingVertical: 7, borderRadius: 17, backgroundColor: 'rgba(8, 17, 25, 0.78)', borderWidth: 1, borderColor: 'rgba(176, 204, 207, 0.2)' },
   zoomTrack: { width: 22, height: 102, alignSelf: 'center', alignItems: 'center' },
   zoomLine: { position: 'absolute', top: ZOOM_THUMB_SIZE / 2, bottom: ZOOM_THUMB_SIZE / 2, width: 3, borderRadius: 2, backgroundColor: '#3b5860' },
@@ -370,7 +407,7 @@ const s = StyleSheet.create({
   dateCopy: { flex: 1, minWidth: 0 },
   dateCopyLandscape: { flex: 0, width: '100%' },
   timelineActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timelineEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  timelineEyebrowRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
   timelineEyebrow: { color: '#77b8b7', fontSize: 14, fontWeight: '800', letterSpacing: 1.3 },
   tidalLockButton: { minHeight: 17, paddingHorizontal: 5, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.28)', flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
   tidalLockButtonActive: { borderColor: 'rgba(115, 206, 195, 0.62)' },
@@ -406,7 +443,6 @@ const s = StyleSheet.create({
   detailValue: { color: '#d5e4e0', fontWeight: '600' },
   collapsedOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 11 },
   collapsedTimeline: { position: 'absolute', alignSelf: 'center', bottom: 22, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 22, backgroundColor: 'rgba(7, 15, 24, 0.9)', borderWidth: 1, borderColor: 'rgba(151, 183, 187, 0.3)' },
-  collapsedTimelineIPad: { left: 32, alignSelf: 'auto' },
   collapsedText: { color: '#e9e8d8', fontSize: 12, fontWeight: '700' },
   collapsedArrow: { color: '#8bceca', fontSize: 18, marginTop: 5 },
 });

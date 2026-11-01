@@ -73,6 +73,9 @@ importers:
       react-native:
         specifier: 0.88.1
         version: 0.88.1(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@19.3.0)(react@19.3.0)
+      react-native-safe-area-context:
+        specifier: ~5.10.1
+        version: 5.10.1(react-native@0.88.1(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       react-native-web:
         specifier: ^0.21.4
         version: 0.21.4(encoding@0.1.13)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -3955,6 +3958,12 @@ packages:
 
   react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}
+
+  react-native-safe-area-context@5.10.1:
+    resolution: {integrity: sha512-ax0T3cAHQIhuAjDQpJ9C1Le96aRiM9PF+Kmgg7Y8+mD7QJMEIx04cG0eG3EGUTdvymgOkCrkakgZFwuOIuNQGw==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   react-native-web@0.21.4:
     resolution: {integrity: sha512-77B6KlalB4osNIck91TNFixPkYPsTbuNEvw8P7IV+4v4/5wZSBRKZnw0Zhx6YjuauDTz71gc8IW+fVhcBMjr5A==}
@@ -9993,6 +10002,11 @@ snapshots:
     optional: true
 
   react-is@18.2.0: {}
+
+  react-native-safe-area-context@5.10.1(react-native@0.88.1(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+      react-native: 0.88.1(@babel/core@7.29.7)(@react-native-community/cli@9.2.1(@babel/core@7.29.7)(encoding@0.1.13))(@types/react@19.3.0)(react@19.3.0)
 
   react-native-web@0.21.4(encoding@0.1.13)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:

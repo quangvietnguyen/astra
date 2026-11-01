@@ -48,8 +48,7 @@ test('scene class uses the module-qualified name declared by its manifest', asyn
   assert.ok(!source.includes('@objc(SceneDelegate)'));
   assert.ok(source.includes('class SceneDelegate: ExpoAppSceneDelegate'));
   assert.ok(source.includes('super.scene(scene, willConnectTo: session, options: connectionOptions)'));
-  assert.ok(source.includes('super.sceneDidBecomeActive(scene)'));
-  assert.ok(source.includes('super.sceneWillEnterForeground(scene)'));
+  assert.ok(!source.includes('requestGeometryUpdate'));
   assert.ok(!source.includes('factory.startReactNative('));
   assert.ok(!source.includes('RCTLinkingManager.application('));
 });
@@ -71,7 +70,7 @@ class ReactNativeDelegate {}`;
   assert.equal(transform(migrated), migrated);
 });
 
-test('iPad supports all orientations while iPhone remains portrait-only', () => {
+test('both displays allow all orientations without forcing window geometry', () => {
   const mods = loadMods();
   const plist = mods.withInfoPlist({modResults: {}}).modResults;
   assert.deepEqual(Array.from(plist['UISupportedInterfaceOrientations~ipad']), [
@@ -80,9 +79,10 @@ test('iPad supports all orientations while iPhone remains portrait-only', () => 
     'UIInterfaceOrientationLandscapeLeft',
     'UIInterfaceOrientationLandscapeRight',
   ]);
-  assert.equal(plist.UIRequiresFullScreen, true);
+  assert.equal(plist.UIRequiresFullScreen, false);
+  assert.deepEqual(Array.from(plist.UISupportedInterfaceOrientations), Array.from(plist['UISupportedInterfaceOrientations~ipad']));
   const config = require('../app.json').expo;
-  assert.equal(config.orientation, 'portrait');
+  assert.equal(config.orientation, 'default');
   assert.deepEqual(config.ios.infoPlist['UISupportedInterfaceOrientations~ipad'], [
     'UIInterfaceOrientationPortrait',
     'UIInterfaceOrientationPortraitUpsideDown',
@@ -101,10 +101,11 @@ test('iPad supports all orientations while iPhone remains portrait-only', () => 
   }`;
   const transform = contents => mods.withAppDelegate({modResults: {contents}}).modResults.contents;
   const migrated = transform(legacy);
-  assert.ok(migrated.includes('UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait'));
+  assert.ok(migrated.includes('return .all'));
+  assert.ok(!migrated.includes('return .portrait'));
   assert.equal(transform(migrated), migrated);
   const source = fs.readFileSync(path.join(__dirname, '../ios/Astra/SceneDelegate.swift'), 'utf8');
   assert.ok(!source.includes('userInterfaceIdiom == .phone'));
-  assert.ok(source.includes('userInterfaceIdiom == .pad ? .all : .portrait'));
-  assert.equal((source.match(/updateOrientation\(for: scene\)/g) || []).length, 3);
+  assert.ok(!source.includes('requestGeometryUpdate'));
+  assert.ok(!source.includes('userInterfaceIdiom'));
 });

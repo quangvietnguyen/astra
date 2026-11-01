@@ -54,25 +54,5 @@ class SceneDelegate: ExpoAppSceneDelegate {
   ) {
     UIViewController.astra_enableAlertSuppressionForDynamicIcon()
     super.scene(scene, willConnectTo: session, options: connectionOptions)
-    updateOrientation(for: scene)
-  }
-
-  override func sceneDidBecomeActive(_ scene: UIScene) {
-    super.sceneDidBecomeActive(scene)
-    updateOrientation(for: scene)
-  }
-
-  override func sceneWillEnterForeground(_ scene: UIScene) {
-    super.sceneWillEnterForeground(scene)
-    updateOrientation(for: scene)
-  }
-
-  private func updateOrientation(for scene: UIScene) {
-    if #available(iOS 16.0, *), let windowScene = scene as? UIWindowScene {
-      let orientations: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-      let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: orientations)
-      windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
-      window?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-    }
   }
 }
