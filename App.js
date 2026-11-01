@@ -9,7 +9,7 @@ import { getMoonAstronomy, getLunarEclipseEvent, isMidAutumnFullMoon } from './s
 import { syncAppIconWithPhase } from './src/utils/dynamicIcon';
 import moonConfig from './src/data/moonConfig.json';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getObserverLayout, getTimelineOffset, getObserverInsets, getDuoMoonSurface, getDuoSurfaceSide } from './src/utils/adaptiveLayout';
+import { getObserverLayout, getTimelineOffset, getObserverInsets, getDuoMoonSurface } from './src/utils/adaptiveLayout';
 import { getMoonZoomRange, clampMoonScale, createMoonPinchHandlers } from './src/utils/moonZoom';
 import { getLocales, useLocales } from 'expo-localization';
 import { getLocaleTag, getPreferredLanguage, getTidalLockHint, translate, translatePhase } from './src/i18n';
@@ -74,11 +74,6 @@ function Observer() {
   const layout = getObserverLayout(width, height, contentInsets, panelHeight, showTimeline, isDuo);
   const { spacious, horizontalTimeline, panelWidth } = layout;
   const compactDuoDetails = isDuo && !spacious;
-  const [duoSurfaceSide, setDuoSurfaceSide] = React.useState(512);
-  const configureDuoRenderer = React.useCallback(({ gl }) => {
-    const context = gl.getContext();
-    setDuoSurfaceSide(getDuoSurfaceSide(context.getParameter(context.RENDERER)));
-  }, []);
   const timelineAnimation = React.useRef(new Animated.Value(1)).current;
   const [showOrbiter, setShowOrbiter] = React.useState(false);
   const [tidalLocked, setTidalLocked] = React.useState(true);
@@ -276,7 +271,7 @@ function Observer() {
         <SafeAreaView style={s.safeContent} edges={contentInsets.bottom === 0 ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
         <View style={s.observer}>
         <View style={[s.moonStage, isDuo && s.moonStageDuo]} {...pinchResponder.panHandlers}>
-        <Moon isDuo={isDuo} onRendererCreated={configureDuoRenderer} canvasStyle={isDuo ? getDuoMoonSurface(layout.safeWidth, layout.safeHeight, duoSurfaceSide) : undefined} lightPosition={astronomy.lightPosition} moonScale={moonScale * layout.moonFitScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={true} hudCenterY={layout.moonCenterY} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
+        <Moon isDuo={isDuo} canvasStyle={isDuo ? getDuoMoonSurface(layout.safeWidth, layout.safeHeight) : undefined} lightPosition={astronomy.lightPosition} moonScale={moonScale * layout.moonFitScale} eclipseEvent={eclipseEvent} isMoonEclipse={isMoonEclipse} isMidAutumn={isMidAutumn} showOrbiter={showOrbiter} hasHUD={true} hudCenterY={layout.moonCenterY} dayOffset={displayedOffset} tidalLocked={tidalLocked} />
         </View>
 
         <View style={[s.header, { left: layout.gutter + 8 }]}>

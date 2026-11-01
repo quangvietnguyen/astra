@@ -94,7 +94,7 @@ test('Duo drawable stays square throughout folding so cached frames cannot stret
     const height = outer.height + (inner.height - outer.height) * progress;
     const surface = getDuoMoonSurface(width, height);
     assert.equal(surface.width, surface.height, 'native frame scales uniformly');
-    assert.equal(surface.height, 512, 'folding must not reallocate the native drawable');
+    assert.equal(surface.height, 1024, 'folding must not reallocate the native drawable');
     assert.equal(surface.height * surface.transform[0].scale, height, 'vertical world-to-pixel framing stays unchanged');
     assert.ok(Math.abs(surface.top + surface.height / 2 - height / 2) < 1e-8, 'center vertically');
     assert.ok(Math.abs(surface.left + surface.width / 2 - width / 2) < 1e-8, 'center within the usable stage');
@@ -106,15 +106,17 @@ test('Duo drawable stays square throughout folding so cached frames cannot stret
 });
 
 
-test('only software renderers use a smaller Duo drawable; quality does not alter framing', () => {
-  const { getDuoSurfaceSide, getDuoMoonSurface } = loaded.exports;
-  assert.equal(getDuoSurfaceSide('Apple Software Renderer'), 192);
-  assert.equal(getDuoSurfaceSide('Apple GPU'), 512);
-  for (const renderer of ['Apple Software Renderer', 'Apple GPU']) {
-    const side = getDuoSurfaceSide(renderer);
-    const surface = getDuoMoonSurface(867, 669, side);
+test('Duo surface preserves native resolution at every supported display size', () => {
+  const { getDuoMoonSurface } = loaded.exports;
+  for (const [width, height] of [[382, 678], [867, 669], [585, 951], [678, 382]]) {
+    const surface = getDuoMoonSurface(width, height);
+    assert.equal(surface.width, 1024);
     assert.equal(surface.width, surface.height);
-    assert.equal(surface.width * surface.transform[0].scale, 669);
-    assert.equal(surface.left + side / 2, 867 / 2);
+    assert.ok(surface.transform[0].scale <= 1, 'never magnify a low-resolution buffer');
+    for (const pixelRatio of [2, 3]) {
+      assert.ok(surface.height * pixelRatio >= height * pixelRatio, 'drawable covers native display pixels');
+    }
+    assert.equal(surface.width * surface.transform[0].scale, height);
+    assert.equal(surface.left + surface.width / 2, width / 2);
   }
 });

@@ -35,18 +35,15 @@ export function getTimelineOffset(previewDays, radius, dayWidth) {
 
 // Keep the drawable allocation fixed through fold animations. Native buffer
 // resizes clear the previous frame; rectangular resizes also stretch it.
+// 1024 points covers both Duo displays, including portrait (951 points),
+// without upscaling the drawable. Keep native pixel density on software renderers
+// too: reducing the buffer makes lunar surface details blur when zooming.
 // Uniform view scaling preserves the existing vertical world-to-pixel mapping.
-export function getDuoMoonSurface(width, height, side = 512) {
+export function getDuoMoonSurface(width, height) {
+  const side = 1024;
   return {
     position: 'absolute', width: side, height: side,
     left: (width - side) / 2, top: (height - side) / 2,
     transform: [{ scale: height / side }],
   };
-}
-
-
-// Simulator software rasterization is much slower than a device GPU. Keep its
-// drawable smaller without changing the Moon's point size or camera framing.
-export function getDuoSurfaceSide(renderer) {
-  return /software/i.test(renderer) ? 192 : 512;
 }

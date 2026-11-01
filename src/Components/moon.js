@@ -374,7 +374,6 @@ function DuoFramePresenter() {
 function Moon({
   isDuo = false,
   canvasStyle,
-  onRendererCreated,
   lightPosition = [10, 0, 10],
   moonScale = 1.0,
   isMoonEclipse = false,
@@ -405,7 +404,6 @@ function Moon({
     <Canvas
       style={canvasStyle}
       gl={isDuo ? DUO_GL_OPTIONS : undefined}
-      onCreated={isDuo ? onRendererCreated : undefined}
       frameloop={isIPhone ? 'demand' : 'always'}
       camera={{ position: [0, 0, 11], fov: 38, far: 10000 }}
     >
