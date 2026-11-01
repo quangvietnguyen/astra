@@ -120,7 +120,7 @@ function SeamlessSunlitGlow({ radius, sunPos, appearance = moonConfig.appearance
 
   return (
     <mesh>
-      <sphereGeometry args={[radius * 1.18, 64, 32]} />
+      <sphereGeometry args={[radius * 1.28, 64, 32]} />
       <shaderMaterial
         ref={matRef}
         uniforms={uniforms}
@@ -147,14 +147,15 @@ function SeamlessSunlitGlow({ radius, sunPos, appearance = moonConfig.appearance
             // On BackSide, dot(viewDir, vNormal) is highest at the inner rim
             // and smoothly decreases to 0.0 at the outer silhouette edge.
             float rim = clamp(dot(viewDir, vNormal), 0.0, 1.0);
-            // Continuous smooth exponential decay (zero steps, zero layers)
-            float falloff = pow(rim, 3.2);
+            // A wider, softer halo keeps the bright limb luminous without
+            // washing out the Moon's surface or introducing visible rings.
+            float falloff = pow(rim, 2.6);
 
             // Directional sun term: glow is intense on the sunlit limb and zero on dark side
             float sunDot = dot(vNormal, uSunDirView);
             float sunFactor = smoothstep(-0.25, 0.45, sunDot);
 
-            float alpha = falloff * sunFactor * 0.65;
+            float alpha = falloff * sunFactor * 0.95;
             gl_FragColor = vec4(uGlowColor, alpha);
           }
         `}
