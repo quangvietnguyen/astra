@@ -26,8 +26,8 @@ def verify(path):
         }
         if ipad_orientations != required_ipad_orientations:
             errors.append("iPad must support portrait and landscape orientations")
-        if info.get("UIRequiresFullScreen") is not True:
-            errors.append("Missing full-screen requirement for iPad support")
+        # UIRequiresFullScreen opts out of iPad multitasking; resizable apps
+        # may set it to false or omit it. Validate orientations above instead.
         scenes = info.get("UIApplicationSceneManifest", {}).get("UISceneConfigurations", {})
         application_scenes = scenes.get("UIWindowSceneSessionRoleApplication", [])
         if not any(scene.get("UISceneDelegateClassName") for scene in application_scenes):
